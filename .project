@@ -4,7 +4,7 @@
 	<comment></comment>
 	<projects>
 		<project>mesher</project>
-		<project>simplegeo</project>
+		<project>simplegeom</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>

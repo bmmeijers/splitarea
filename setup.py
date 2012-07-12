@@ -34,8 +34,8 @@ setup(
     version = get_version(),
     author = "Martijn Meijers",
     author_email = "b dot m dot meijers at tudelft dot nl",
-    license = "MIT",
-    description = "A constrained Delaunay mesher for Python",
-    url = "https://ssl.zw9.nl/svn/code/splitarea/",
+    license = "MIT license",
+    description = "SplitArea: an algorithm for splitting polygons in a topological data structure",
+    url = "",
     package_dir = {'':'src'},
 )
