@@ -1,0 +1,1143 @@
+from math import atan2, degrees, pi, hypot, cos, sin
+#from brep.util import st_length
+from simplegeo.geometry import LineString
+from mesher.mesh import coincident
+#from snap import SnappingGrid
+#PRECISION = 1000000
+DEBUG = False
+pi2 = 2*pi
+
+def angle(p1, p2):
+    assert not (p1.x == p2.x and p1.y == p2.y)
+    dx = p2.x - p1.x
+    dy = p2.y - p1.y
+    alpha = atan2 (dy, dx)
+    if alpha < 0:
+        alpha += pi2
+    return alpha
+
+#def node_key(point):
+#    return "{0}_{1}".format(int(round(point.x * PRECISION, 6)), 
+#                            int(round(point.y * PRECISION, 6)) )
+
+class SkeletonNode:
+
+    def __init__(self, vertex_id, external_id, pt):
+        self.id = vertex_id
+        self.external_id = external_id
+        self.pt = pt
+
+        self.first_edge = None
+        self.first_out = None
+        self.first_angle = None
+        
+        self.degree = 0
+        self.label = 0 # for visiting
+        
+    def __str__(self):
+        if self.id is not None:
+            return "N<%s (%s)>" % (self.id, self.pt)
+        else:
+            return "N<-- (%s)>" % (self.pt)
+    
+    def remove_edge(self, edge, out):
+        """Removes an edge from the skeleton.
+        
+        This method is mostly used for unwanted-branch pruning. Pruning these
+        branches might lead to artifacts being preserved. Therefore this method
+        returns True if there are two edges remaining which are incident at 
+        this node. These two edges should be straightened (that is removed and
+        an alternative connection should be inserted into the skeleton).
+        """
+#        print "removing", edge, ", at", self
+        ccw_edge, ccw_out, ccw_angle, = self.ccw_next_edge(edge, out)
+        cw_edge, cw_out, cw_angle, = self.cw_next_edge(edge, out)
+        self.degree -= 1
+        if self.degree != 0:
+            if cw_out:
+                cw_edge.lcw = ccw_edge
+                cw_edge.lcw_out = ccw_out
+            else:
+                cw_edge.rcw = ccw_edge
+                cw_edge.rcw_out = ccw_out
+            
+            if ccw_out:
+                ccw_edge.rccw = cw_edge
+                ccw_edge.rccw_out = cw_out
+            else:
+                ccw_edge.lccw = cw_edge
+                ccw_edge.lccw_out = cw_out
+            
+            if edge is self.first_edge:
+                self.first_edge = ccw_edge
+                self.first_out = ccw_out
+                self.first_angle = ccw_angle
+            
+            if cw_edge.external or ccw_edge.external:
+                return False
+            
+            if cw_edge.unmovable or ccw_edge.unmovable:
+                return False
+            
+            if cw_edge is not ccw_edge \
+                and self.degree == 2 \
+                and cw_edge.left_face_id != cw_edge.right_face_id \
+                and ccw_edge.left_face_id != ccw_edge.right_face_id \
+                and (not cw_edge.external or not ccw_edge.external) \
+                and (not cw_edge.unmovable or not ccw_edge.unmovable):
+                return True
+            else:
+                return False
+        else:
+            self.first_edge = None
+            self.first_out = None
+            self.first_angle = None
+            assert self.degree == 0
+            return False
+            
+    def add_edge(self, edge, out):
+        if out:
+            assert edge.start_node is self
+        else:
+            assert edge.end_node is self
+        
+        self.degree += 1
+        
+        if DEBUG:
+            print "adding edge", edge.edge_id, "at", self, "(",self.pt,")"
+        
+        if self.first_edge is None:
+            self.first_edge = edge
+            self.first_out = out
+            if out:
+                # angle a->b, where a is node (1st vertex) and b is 2nd vertex of line
+                new_angle = angle(edge.geometry[0], edge.geometry[1])
+                edge.start_angle = new_angle 
+            else:
+                # angle a->b, where a is node (last vertex) and b is 2nd last vertex of line
+                new_angle = angle(edge.geometry[-1], edge.geometry[-2])
+                edge.end_angle = new_angle 
+            self.first_angle = new_angle
+            if out:
+                edge.lcw = edge
+                edge.lcw_out = out
+                edge.rccw = edge
+                edge.rccw_out = out
+            else:
+                edge.lccw = edge
+                edge.lccw_out = out
+                edge.rcw = edge
+                edge.rcw_out = out
+        else:
+            # add edge
+            if out:
+                # angle a->b, where a is node (1st vertex) and b is 2nd vertex of line
+                new_angle = angle(edge.geometry[0], edge.geometry[1]) 
+                edge.start_angle = new_angle 
+            else:
+                # angle a->b, where a is node (last vertex) and b is 2nd last vertex of line
+                new_angle = angle(edge.geometry[-1], edge.geometry[-2]) 
+                edge.end_angle = new_angle 
+            
+            # loop to find where this edge should be inserted
+            prev_edge, prev_out, prev_angle = self.first_edge, self.first_out, self.first_angle
+            next_edge, next_out, next_angle = self.ccw_next_edge(prev_edge, prev_out)
+            while True:
+                if next_edge == self.first_edge and self.first_out == next_out:
+                    break
+                
+                if new_angle > prev_angle and new_angle < next_angle:
+                    break
+                prev_edge, prev_out, prev_angle = next_edge, next_out, next_angle
+                next_edge, next_out, next_angle = self.ccw_next_edge(prev_edge, prev_out)
+
+#            assert new_angle != next_angle
+#            assert new_angle != prev_angle
+
+            # update incident edges their wings, according to found position
+            # of new edge
+            
+            # next_edge
+            if next_out:
+                next_edge.rccw = edge # rccw, new
+                next_edge.rccw_out = out
+            else:
+                next_edge.lccw = edge # lccw, new
+                next_edge.lccw_out = out
+            # edge
+            if out:
+                edge.lcw = next_edge # lcw, next
+                edge.lcw_out = next_out
+                edge.rccw = prev_edge # rccw, prev
+                edge.rccw_out = prev_out
+            else:
+                edge.rcw = next_edge # rcw, next
+                edge.rcw_out = next_out
+                edge.lccw = prev_edge # lccw, prev
+                edge.lccw_out = prev_out
+            # prev_edge
+            if prev_out:
+                prev_edge.lcw = edge # lcw, new
+                prev_edge.lcw_out = out
+            else:
+                prev_edge.rcw = edge # rcw, new
+                prev_edge.rcw_out = out
+
+            # update first edge of this node,
+            # if new edge has smallest angle
+            if new_angle < self.first_angle:
+                self.first_edge = edge
+                self.first_out = out
+                self.first_angle = new_angle
+        
+        if DEBUG: print " fin adding **", edge
+    
+    def ccw_next_edge(self, edge, out):
+        # take next counter clockwise edge at this node
+        if out:
+            next_edge = edge.lcw
+            next_out = edge.lcw_out
+        else:
+            next_edge = edge.rcw
+            next_out = edge.rcw_out
+        # next_angle
+        if next_out:
+            next_angle = next_edge.start_angle
+        else:
+            next_angle = next_edge.end_angle
+        return (next_edge, next_out, next_angle,)
+
+    def cw_next_edge(self, edge, out):
+        # take next clockwise edge at this node
+        if out:
+            next_edge = edge.rccw
+            next_out = edge.rccw_out
+        else:
+            next_edge = edge.lccw
+            next_out = edge.lccw_out
+        # next_angle
+        if next_out:
+            next_angle = next_edge.start_angle
+        else:
+            next_angle = next_edge.end_angle
+        return (next_edge, next_out, next_angle,)
+
+class SkeletonEdge:
+    def __init__(self, 
+                 edge_id,
+                 start_node, end_node, 
+                 left_face_id, right_face_id,
+                 geometry, external, unmovable):
+        
+        self.edge_id = edge_id
+        
+        self.start_node = start_node
+        self.end_node = end_node
+        
+        self.left_face_id = left_face_id
+        self.right_face_id = right_face_id
+        
+        self.geometry = geometry
+
+        self.external = external
+        
+        self.unmovable = unmovable
+        # wings
+        # (direction of edge pointed at is kept in <wing>_out)
+        #
+        #   \     / 
+        #    \   /  
+        #     \e/   
+        # lccw ^ rcw
+        #      |  
+        #(LF)  |  (RF)
+        #      |  
+        #  lcw o rccw
+        #     /s\ 
+        #    /   \ 
+        #   /     \
+        #
+        self.rccw = None
+        self.rccw_out = None
+        #
+        self.rcw = None
+        self.rcw_out = None
+        #
+        self.lccw = None
+        self.lccw_out = None
+        #
+        self.lcw = None
+        self.lcw_out = None
+        
+        self.label = 0 # for visiting
+
+    def __str__(self):
+        if self.lccw_out is None:
+            lccw = "?"
+            lccw_out = "?"
+        else:
+            lccw = self.lccw.edge_id
+            if self.lccw_out: 
+                lccw_out = "+" 
+            else: 
+                lccw_out = "-"
+
+        if self.rccw_out is None:
+            rccw = "?"
+            rccw_out = "?"
+        else:
+            rccw = self.rccw.edge_id
+            if self.rccw_out: 
+                rccw_out = "+" 
+            else: 
+                rccw_out = "-"
+
+        if self.lcw_out is None:
+            lcw = "?"
+            lcw_out = "?"
+        else:
+            lcw = self.lcw.edge_id
+            if self.lcw_out: 
+                lcw_out = "+" 
+            else: 
+                lcw_out = "-"
+
+        if self.rcw_out is None:
+            rcw = "?"
+            rcw_out = "?"
+        else:
+            rcw = self.rcw.edge_id
+            if self.rcw_out: 
+                rcw_out = "+" 
+            else: 
+                rcw_out = "-"
+        return """E<{0}, s{1} e{2}, l{3} r{4}, lccw:{5}{6},rcw:{7}{8} lcw:{9}{10},rccw:{11}{12}, ext:{13}>""".format(
+        self.edge_id, 
+        self.start_node.id, self.end_node.id, 
+        self.left_face_id, self.right_face_id, 
+        lccw_out, lccw,
+        rcw_out, rcw,
+        lcw_out, lcw,
+        rccw_out, rccw,
+        self.external)
+
+class SkeletonGraph:
+    
+    def __init__(self, debug = False):
+        global DEBUG
+        DEBUG = debug
+        self.nodes = {}
+        self.faces = {}
+        self.ext = set()
+        self.edges = [] #set()
+        self.new_edges = []
+        self.universe_id = None
+        
+#        self.snap = {}
+#        self.snapping_grid = SnappingGrid()
+#        self.snapping_grid.set_precision(8)
+#        self.snapping_grid.set_grid_size(4)
+    
+    def add_node(self, pt, vertex_id, external_id):#point, external_id):
+        print "adding node", vertex_id, external_id, " ", pt
+#        if point not in self.snap:
+#            key = external_id
+#            self.snap[point] = key
+#        else:
+#            key = self.snap[point]
+#        key = self.snapping_grid.make_key(point) # node_key(point)
+        if vertex_id not in self.nodes:
+            print "making new node", vertex_id
+            n = SkeletonNode(vertex_id, external_id, pt)
+            # n = SkeletonNode(external_id, point)
+            self.nodes[vertex_id] = n
+        else:
+            print "reusing node", vertex_id
+            n = self.nodes[vertex_id]
+        return n
+    
+    def add_segment(self, 
+                    geometry,
+
+                    # topo structure
+                    edge_id = None,
+                    start_node_id = None,
+                    end_node_id = None,
+                    left_face_id = None, 
+                    right_face_id = None,
+                    
+                    # triangulation
+                    start_vertex_id = None,
+                    end_vertex_id = None, 
+                    
+                    # extra info
+                    external = True,
+                    start_external = False, # True if start_vertex_id is None
+                    end_external = False, # True if end_vertex_id is None
+                    unmovable = False):
+        EXTERNAL = 1
+        
+        print "adding", edge_id, "with", geometry
+        
+        sn = self.add_node(geometry[0], start_vertex_id, start_node_id)
+        if DEBUG: print sn
+        if start_external:
+            sn.label = EXTERNAL
+        en = self.add_node(geometry[-1], end_vertex_id, end_node_id)
+        
+        if DEBUG:
+            # TODO: does not necessarily hold -> snapping grid can snap nodes
+            # thus geometry of point can be moved a bit...
+            try:
+                assert coincident(geometry[0], sn.pt)
+            except:
+                print sn.pt
+                raise
+                
+            try:
+                assert coincident(geometry[-1], en.pt)
+            except:
+                print en.pt
+                raise
+        
+        if DEBUG: print en
+        if end_external:
+            en.label = EXTERNAL
+        edge = SkeletonEdge(edge_id, 
+                            sn, en, 
+                            left_face_id, right_face_id, 
+                            geometry, external, unmovable)
+        if DEBUG: print "edge", edge.edge_id, "", sn, "", en
+        sn.add_edge(edge, out = True)
+        en.add_edge(edge, out = False)
+        
+        self.edges.append(edge) #add(edge)
+        if external: # thus external edge
+            self.ext.add(edge)
+            
+    def remove_node(self, node):
+        """Deleting a node from the structure. The node should not be connected
+        any more (i.e. degree == 0).
+        """
+        raise ValueError("Here we have a problem, as the grid is not there")
+        key = self.snapping_grid.make_key(node.pt) #node_key(node.pt)
+        assert self.nodes[key].degree == 0
+        del self.nodes[key]
+
+    def create_shortcut_edge(self, node):
+        edge, out = node.first_edge, node.first_out
+        ccw_edge, ccw_out, ccw_angle, = node.ccw_next_edge(edge, out)
+        # get left / right, start / end, geometry for short cut edge
+        new_edge_id = edge.edge_id
+        if out:
+            new_start = edge.end_node
+            new_left_face_id = edge.right_face_id
+            new_right_face_id = edge.left_face_id
+        else:
+            new_start = edge.start_node
+            new_left_face_id = edge.left_face_id
+            new_right_face_id = edge.right_face_id
+        if ccw_out:
+            new_end = ccw_edge.end_node
+        else:
+            new_end = ccw_edge.start_node
+        geom = LineString()
+        geom.append(new_start.pt)
+        geom.append(new_end.pt)
+        # remove edge
+        self.remove_edge(edge)
+        # remove ccw_edge
+        self.remove_edge(ccw_edge)
+        # insert shortcut
+        self.add_segment(
+                    geom,
+                    external = False,
+                    edge_id = new_edge_id,
+                    start_node_id = self.snapping_grid.make_key(new_start.pt), 
+                    end_node_id = self.snapping_grid.make_key(new_end.pt),
+                    left_face_id = new_left_face_id, 
+                    right_face_id = new_right_face_id,
+                    start_external = False,
+                    end_external = False)
+
+
+    def remove_edge(self, edge):
+        """Removing a edge from the Winged Edge structure.
+        
+        If node is left with degree = 0 it is also deleted.
+        """
+        edge.start_node.remove_edge(edge, True) 
+        edge.end_node.remove_edge(edge, False)
+        self.edges.remove(edge)
+        if edge.start_node.degree == 0:
+            self.remove_node(edge.start_node)
+        edge.start_node = None
+        if edge.end_node.degree == 0:
+            self.remove_node(edge.end_node)
+        edge.end_node = None
+
+    def prune_edge(self, edge):
+        """Prunes an edge from the Winged Edge structure.
+        
+        Pruning is more than removing:
+        A new shortcut edge is created, if there are only two internal
+        skeleton edges left at a node (those two edges are removed and replaced
+        by their shortcut---this avoids a ``jaggy'' skeleton)
+        
+        If a node is left with degree = 0 it is also deleted.
+        """
+        shorten_start = edge.start_node.remove_edge(edge, True)
+        shorten_end = edge.end_node.remove_edge(edge, False)
+        
+        if shorten_start:
+            self.create_shortcut_edge(edge.start_node)
+        elif edge.start_node.degree == 0:
+            self.remove_node(edge.start_node)
+        edge.start_node = None
+            
+        if shorten_end:
+            self.create_shortcut_edge(edge.end_node)
+        elif edge.end_node.degree == 0:
+            self.remove_node(edge.end_node)
+        edge.end_node = None
+
+        self.edges.remove(edge)
+            
+
+    def label_edges(self, value):
+        """Set ``value'' to all label properties on all Edges"""
+        for edge in self.edges:
+            edge.label = value
+
+    def label_nodes(self, value):
+        """Set ``value'' to all label properties on all Nodes"""
+        for node in self.nodes.itervalues():
+            node.label = value
+        
+    def label_sides(self, debug = False):
+        """ """
+        INIT = 0
+        LEFT = 1
+        RIGHT = 2
+        BOTH = LEFT + RIGHT
+        if debug:
+            if DEBUG: print "lAbel sides"
+        self.label_edges(INIT)
+        if debug:
+            if DEBUG: print "joh"
+            if DEBUG: print self.ext
+            if DEBUG: print "j0h"
+        for edge in self.ext:
+            if edge.label == BOTH:
+                continue
+            else:
+                if debug:
+                    if DEBUG: print "=+=+=+=+=+=+="
+                first_edge = edge
+                while True:
+                    # stop if edge is used twice
+                    if edge.label == BOTH:
+                        break
+                    if not edge.label & LEFT:
+                        loop_for_face_id = edge.left_face_id
+                        visit_left = True
+                    elif not edge.label & RIGHT:
+                        loop_for_face_id = edge.right_face_id
+                        visit_left = False
+                    if debug:
+                        if DEBUG: print "starting at", first_edge, "propagating", loop_for_face_id, "on left?", visit_left
+                    while True: 
+                        if visit_left:
+                            if not edge.external:
+                                edge.left_face_id = loop_for_face_id 
+                            elif edge.external and edge.lccw.external:# \
+                                #and edge.lccw is edge: #TODO BUG check that this external edge is not the same!!!
+                                if edge.lccw_out:
+                                    loop_for_face_id = edge.lccw.left_face_id
+                                    if debug:
+                                        if DEBUG: print "A",
+                                else:
+                                    loop_for_face_id = edge.lccw.right_face_id
+                                    if debug:
+                                        if DEBUG: print "B",
+                                if debug:
+                                    if DEBUG: print "turning around @ node", edge.end_node.id,
+                                    if DEBUG: print "changed face id", loop_for_face_id
+                            edge.label += LEFT
+                            visit_left = edge.lccw_out
+                            if debug:
+                                if DEBUG: print "now at", edge, "propagating", loop_for_face_id, "on left?", visit_left, "taking lccw", edge.lccw.edge_id
+                            edge = edge.lccw
+                        else:
+                            if not edge.external:
+                                edge.right_face_id = loop_for_face_id
+                            elif edge.external and edge.rccw.external:# \
+                                #and edge.rccw is edge:
+                                if edge.rccw_out:
+                                    loop_for_face_id = edge.rccw.left_face_id
+                                    if debug:
+                                        if DEBUG: print "C",
+                                else:
+                                    loop_for_face_id = edge.rccw.right_face_id
+                                    if debug:
+                                        if DEBUG: print "D",
+                                if debug:
+                                    if DEBUG: print "turning around @ node", edge.start_node.id,
+                                    if DEBUG: print "changed face id", loop_for_face_id
+                            edge.label += RIGHT
+                            visit_left = edge.rccw_out
+                            if debug:
+                                if DEBUG: print "now at", edge, "propagating", loop_for_face_id, "on left?", visit_left, "taking rccw", edge.rccw.edge_id
+                            edge = edge.rccw
+                        # check that turning around a node goes well
+                        if False:
+                            tmp_fid = None
+                            if visit_left and edge.left_face_id is not None:
+                                tmp_fid = edge.left_face_id
+                            elif not visit_left and edge.right_face_id is not None: 
+                                tmp_fid = edge.right_face_id
+                            if tmp_fid is not None:
+                                try:
+                                    assert loop_for_face_id == tmp_fid
+                                except:
+                                    if DEBUG: print "expected", tmp_fid, "found", loop_for_face_id, edge
+                                    raise
+                        #
+                        if edge is first_edge:
+                            if debug:
+                                if DEBUG: print "stopping: reached", edge
+                                if DEBUG: print ""
+                            break
+        if DEBUG: print "=8=8=8=8="
+
+        for edge in self.edges:
+            if (edge.left_face_id is None and edge.right_face_id is not None) \
+                or \
+                (edge.right_face_id is None and edge.left_face_id is not None):
+                
+#                raise NotImplementedError('should be done something here with universe')
+                # TODO: skip if adjacent to universe 
+                # (we should start on edge that is not zero weight)
+                if edge.left_face_id is None and edge.right_face_id == self.universe_id:
+                    continue
+                if edge.right_face_id is None and edge.left_face_id == self.universe_id:
+                    continue
+                #
+                
+                #
+                stack = [edge]
+                while stack:
+                    edge = stack.pop()
+                    if edge.unmovable:
+                        continue
+                    
+                    if edge.left_face_id is None:
+                        visit_left = True
+                        loop_for_face_id = edge.right_face_id
+                        
+                    elif edge.right_face_id is None:
+                        visit_left = False
+                        loop_for_face_id = edge.left_face_id
+                    
+                    else:
+                        continue
+                    
+                    first_edge = edge
+                    if debug:
+                        if DEBUG: print "starting at", first_edge
+                    while True:
+                        if debug:
+                            if DEBUG: print "now at", edge.edge_id
+                        if visit_left:
+                            assert edge.left_face_id is None
+                            edge.left_face_id = loop_for_face_id
+                            if edge.right_face_id is None:
+                                stack.append(edge)
+                            visit_left = edge.lccw_out
+                            edge = edge.lccw
+                        else:
+                            assert edge.right_face_id is None
+                            edge.right_face_id = loop_for_face_id
+                            if edge.left_face_id is None:
+                                stack.append(edge)
+                            visit_left = edge.rccw_out
+                            edge = edge.rccw
+                            
+                        if edge is first_edge:
+                            break
+        error = False
+        for edge in self.edges:
+            if edge.left_face_id is None or edge.right_face_id is None:
+                if DEBUG: print edge, ">>>"
+                if DEBUG: print edge.edge_id, edge.start_node, edge.end_node
+                error = True
+        if error:
+            raise ValueError('We could not label an edge somehow')
+#        temp_hack = False
+#        for edge in self.edges:
+#            if edge.left_face_id is None:
+#                temp_hack = True
+##                edge.left_face_id = 0
+#            if edge.right_face_id is None:
+##                edge.right_face_id = 0
+#                temp_hack = True
+#        
+#        if temp_hack:
+#            raise ValueError("temporary universe hack for islands")
+
+    def prune_branches(self, debug = False):
+        """Prune branches, i.e. edges that have same face_id on both sides
+        """
+        if debug:
+            if DEBUG: print "pruning branches"
+        removal = set()
+        for edge in self.edges:
+            if edge.left_face_id == edge.right_face_id:
+                removal.add(edge)
+        for edge in removal:
+            # Prune ('skim') or just remove
+            if debug:
+                if DEBUG: print "removing", edge
+#            self.remove_edge(edge)
+            self.prune_edge(edge)
+        del removal
+
+    def create_edge_table(self):
+        from brep.conn import ConnectionFactory
+        conn = ConnectionFactory()
+        cursor = conn.cursor()
+        
+        command = """
+DROP TABLE IF EXISTS tmp_mesh_skel;"""
+        cursor.execute(command)
+
+        command = """
+CREATE TABLE tmp_mesh_skel
+(
+id int8 NOT NULL,
+txt varchar,
+neighbours varchar
+)  WITH OIDS;"""
+        cursor.execute(command)
+        command = """SELECT AddGeometryColumn('tmp_mesh_skel', 'geometry', -1, 'LINESTRING', 2);
+"""
+        cursor.execute(command)
+        cursor.close()
+        conn.commit()
+        conn.close()
+
+    def visualize_edges(self, txt = ""):
+        from brep.conn import ConnectionFactory
+        conn = ConnectionFactory()
+        cursor = conn.cursor()
+        for edge in self.edges:
+            txt = "external? {0} unmovable? {1}".format(edge.external, edge.unmovable)
+            cursor.execute(
+"INSERT INTO tmp_mesh_skel (id, txt, neighbours, geometry) VALUES ({0}, '{1}', '{2} {3} minmaxed', geomfromtext('{4}'));".format(edge.edge_id, txt, min(edge.left_face_id, edge.right_face_id),  max(edge.left_face_id, edge.right_face_id), edge.geometry))
+        cursor.close()
+        conn.commit()
+        conn.close()
+        print "VISUALIZE EDGES, see tmp_mesh_skel"
+        
+    def visualize_nodes(self):
+        for node in self.nodes.itervalues():
+            print id(node), node.id, node.pt
+#        from brep.conn import ConnectionFactory
+#        conn = ConnectionFactory()
+#        cursor = conn.cursor()
+#        command = """
+#DROP TABLE IF EXISTS tmp_mesh_pt2;"""
+#        cursor.execute(command)
+#        command = """CREATE TABLE tmp_mesh_pt2
+#        (
+#            id int8 UNIQUE NOT NULL,
+#            txt varchar
+#        )  WITH OIDS;"""
+#        cursor.execute(command)
+#        command = """SELECT AddGeometryColumn('tmp_mesh_pt2', 'geometry', -1, 'POINT', 2);
+#        """
+#        cursor.execute(command)
+#        for node in self.nodes.itervalues():
+#            command = "INSERT INTO tmp_mesh_pt2 (id, txt, geometry) VALUES ({0}, '{1}', geomfromtext('{2}'));".format(id(node), node.id, node.pt)
+#            cursor.execute(command)
+#        cursor.close()
+#        conn.commit()
+#        conn.close()
+#        print "VISUALIZE NODES, see tmp_mesh_pt2"
+
+    def list_segments_pg(self):
+        from psycopg2 import connect
+        from connect import auth_params
+        auth = auth_params()
+        connection = connect(host='%s' % auth['host'], 
+                                  port=auth['port'], 
+                                  database='%s' % auth['database'], 
+                                  user='%s' % auth['username'], 
+                                  password='%s' % auth['password'])
+        cursor = connection.cursor()
+        cursor.execute("""
+DROP TABLE IF EXISTS tmp_mesh_segments;""")
+        cursor.execute("""
+CREATE TABLE tmp_mesh_segments
+(
+    id int8 UNIQUE NOT NULL,
+    lf varchar,
+    rf varchar
+)  WITH OIDS;
+""")
+        cursor.execute("""
+SELECT AddGeometryColumn('tmp_mesh_segments', 'geometry', -1, 'LINESTRING', 2);
+""")
+        for edge in self.edges:
+            cursor.execute("""INSERT INTO tmp_mesh_segments (id,  lf, rf, geometry) VALUES
+({0}, '{1}', '{2}', geomfromtext('{3}'));""".format(edge.edge_id, edge.left_face_id, edge.right_face_id, edge.geometry)
+        )
+        connection.commit()
+        cursor.close()
+        connection.close()
+
+
+    def find_new_edges(self, new_node_id = 0, new_edge_id = 0):
+        # this method should output new edges, with correct 
+        # id, left/right face, start/end node
+        # TODO: remove nodes with degree = 2 that do not form loop
+        # Q: can such loops exist??
+        
+        INIT = 0
+        VISITED = 1
+        self.new_node_id = new_node_id
+        self.new_edge_id = new_edge_id
+        if DEBUG: print "find_new_edges"
+        self.label_edges(INIT)
+        # label nodes that do not have an id yet
+        for node in self.nodes.itervalues():
+            # if node.degree != 2 and 
+            if node.id is None:
+                self.new_node_id += 1
+                node.id = self.new_node_id
+
+        for edge in self.edges:
+            if edge.label == VISITED:
+                continue
+            else:
+                if DEBUG: print ""
+                start = edge
+                edge.label = VISITED
+                if DEBUG: group_by = []
+                if DEBUG: group_by.append(edge.edge_id)
+                sn = edge.start_node
+                en = edge.end_node
+                assert type(sn.id) is type(1)
+                assert type(en.id) is type(1)
+                lf_id = edge.left_face_id
+                rf_id = edge.right_face_id
+                check = (min(lf_id,rf_id),max(lf_id,rf_id))
+                if DEBUG: print "start:", edge.edge_id, "st:", sn.id, "en:", en.id
+                geom = edge.geometry
+                out = True #e->s, outgoing from s 
+                # walk in direction from end -> start
+                while True:
+                    # break when:
+                    # edge next is start
+                    # L/R is not same any more
+                    # node stepping over has a degree >= 3 or 1 (i.e. !2)
+                    if DEBUG: print "now at (sn)", sn
+                    if sn.degree != 2:
+                        if DEBUG: print "(dir st) break: node.degree != 2 @e", edge.edge_id, "n", sn.id
+                        break
+                    
+#                    if out:
+#                        edge = edge.lcw
+#                        out = edge.lcw_out
+#                    else:
+#                        edge = edge.rcw
+#                        out = edge.rcw_out
+                    
+                    next_edge, out, angle = sn.ccw_next_edge(edge, out)
+                    if edge.external and next_edge.external:
+                        break
+                    edge = next_edge
+                    if edge is start:
+                        if DEBUG: print "(dir st) break: edge is start", edge.edge_id
+                        break
+                    if edge.label == VISITED:
+                        if DEBUG: print "(dir st) break: edge is already visited", edge.edge_id
+                        break
+                    if (min(edge.right_face_id, edge.left_face_id), max(edge.right_face_id, edge.left_face_id)) != check:
+                        if DEBUG: print "(dir st) break: not same lf / rf"
+                        break
+                    if out:
+                        sn = edge.end_node
+                        # use reversed edge.geometry[:-2] for geom
+                        # and extend what's there already
+                        extend = geom[1:]
+                        geom = edge.geometry[:]
+                        geom.reverse()
+                        geom.extend(extend)
+#                        geom.extend(edge.geometry[1:]) # correct?
+                    else:
+                        sn = edge.start_node
+                        extend = geom[1:]
+                        geom = edge.geometry[:]
+                        geom.extend(extend)
+                    if DEBUG: print "(dir st) now at", edge.edge_id, "propagating", lf_id, rf_id
+                    if DEBUG: group_by.append(edge.edge_id)
+                    edge.label = VISITED
+                edge = start
+                out = True # s->e,incoming at e (will be flipped in ccw_next_edge
+                # walk in direction from start -> end
+                while True:
+                    if DEBUG: print "now at node (en)", en
+                    if DEBUG: print edge
+                    if en.degree != 2:
+                        if DEBUG: print "(dir en) break: node.degree != 2 @e", edge.edge_id, "n", sn.id, "hoovering at node", sn.id
+                        break
+#                    edge, out, angle = en.ccw_next_edge(edge, not out)
+                    next_edge, out, angle = sn.ccw_next_edge(edge, not out)
+                    if edge.external and next_edge.external:
+                        break
+                    edge = next_edge
+
+#                    if out:
+#                        edge = edge.rcw
+#                        out = edge.rcw_out
+#                    else:
+#                        edge = edge.lcw
+#                        out = edge.lcw_out
+#                    
+                    if edge is start:
+                        if DEBUG: print "(dir en) break: edge is start", edge.edge_id
+                        break
+                    if edge.label == VISITED:
+                        if DEBUG: print "(dir en) break: edge is already visited", edge.edge_id
+                        break
+                    if (min(edge.right_face_id, edge.left_face_id), max(edge.right_face_id, edge.left_face_id)) != check:
+                        if DEBUG: print "(dir en) break: not same lf / rf"
+                        break
+                    if out:
+                        en = edge.end_node
+                        geom.extend(edge.geometry[1:])
+                    else:
+                        en = edge.start_node
+                        geom.extend(edge.geometry[-2::-1])
+                    if DEBUG: print "(dir en) now at", edge.edge_id, "propagating", lf_id, rf_id, "hoovering at node", en.id
+                    if DEBUG: group_by.append(edge.edge_id)
+                    edge.label = VISITED
+                if DEBUG: print "fin, group found:", group_by
+                try:
+                    assert coincident(geom[0], sn.pt)
+                except AssertionError:
+                    print sn.pt, geom[0]
+                    raise
+                try:
+                    assert coincident(geom[-1], en.pt)
+                except AssertionError:
+                    print geom
+                    print sn, en, sn.pt, en.pt
+                    print en.pt, geom[-1]
+                    raise
+                assert sn.id is not None
+                assert en.id is not None
+                assert lf_id is not None
+                assert rf_id is not None
+                # TODO: skip length calculation
+                self.new_edge_id += 1
+                #new = (start.edge_id, sn.id, en.id, lf_id, rf_id, st_length(geom), geom)
+                new = (self.new_edge_id, sn.id, en.id, lf_id, rf_id, geom.length, geom)
+                self.new_edges.append(new)
+#        for new in self.new_edges:
+#            print new
+        if DEBUG:
+            from psycopg2 import connect
+            from connect import auth_params
+            auth = auth_params()
+            connection = connect(host='%s' % auth['host'], 
+                                      port=auth['port'], 
+                                      database='%s' % auth['database'], 
+                                      user='%s' % auth['username'], 
+                                      password='%s' % auth['password'])
+            cursor = connection.cursor()
+            cursor.execute("""
+    DROP TABLE IF EXISTS tmp_mesh_ln4;""")
+            cursor.execute("""
+    CREATE TABLE tmp_mesh_ln4
+    (
+        id int8 UNIQUE NOT NULL,
+        start_node_id varchar,
+        end_node_id varchar,
+        left_face_id varchar,
+        right_face_id varchar
+    )  WITH OIDS;
+    """)
+            cursor.execute("""
+    SELECT AddGeometryColumn('tmp_mesh_ln4', 'geometry', -1, 'LINESTRING', 2);
+    """)
+            cursor.execute("""TRUNCATE TABLE tmp_mesh_ln4;""")
+            connection.commit()
+            for eid, sn, en, lf, rf, length, geom, in self.new_edges:
+                try:
+                    command = """INSERT INTO tmp_mesh_ln4 (id, start_node_id, end_node_id, left_face_id, right_face_id, geometry) VALUES
+    ('{0}', '{1}', '{2}', '{3}', '{4}', geomfromtext('{5}'));""".format(eid, sn, en, lf, rf, geom)
+                    cursor.execute(command)
+                    if DEBUG: print "insertion succeeded (", eid, ")"
+                except Exception, err:
+                    if DEBUG: print "insertion not succeeded (", eid, ")", err
+    #                    raise
+            connection.commit()
+            cursor.close()
+            connection.close()
+        return
+
+        # from longest edges possible starting from a node where degree != 2
+        for node in self.nodes.itervalues():
+            if node.degree != 2: # node.degree != 2 or 
+                while True:
+                    start_edge, start_out, start_angle, = self.unvisited_edge(node)
+                    if start_edge.label == VISITED:
+                        break
+                    else:
+                        self.new_node_id += 1
+                        self.make_edge_walk(start_edge, start_out, True, self.new_node_id)
+        # walk over remaining edges
+        for edge in self.edges:
+            if edge.label != VISITED:
+                if DEBUG: print "walking over rem. edges"
+                start_edge, start_out, start_angle, = self.unvisited_edge(edge.start_node)
+                self.new_node_id += 1
+                self.make_edge_walk(start_edge, start_out, False, self.new_node_id)
+        # 
+        if DEBUG:
+            from psycopg2 import connect
+            from connect import auth_params
+            auth = auth_params()
+            connection = connect(host='%s' % auth['host'], 
+                                      port=auth['port'], 
+                                      database='%s' % auth['database'], 
+                                      user='%s' % auth['username'], 
+                                      password='%s' % auth['password'])
+            cursor = connection.cursor()
+            cursor.execute("""
+    DROP TABLE IF EXISTS tmp_mesh_ln4;""")
+            cursor.execute("""
+    CREATE TABLE tmp_mesh_ln4
+    (
+        id int8 UNIQUE NOT NULL,
+        start_node_id int,
+        end_node_id int,
+        left_face_id int,
+        right_face_id int
+    )  WITH OIDS;
+    """)
+            cursor.execute("""
+    SELECT AddGeometryColumn('tmp_mesh_ln4', 'geometry', -1, 'LINESTRING', 2);
+    """)
+            for eid, sn, en, lf, rf, length, geom, in self.new_edges:
+                try:
+                    command = """INSERT INTO tmp_mesh_ln4 (id, start_node_id, end_node_id, left_face_id, right_face_id, geometry) VALUES
+    ({0}, {1}, {2}, {3}, {4}, geomfromtext('{5}'));""".format(eid, sn, en, lf, rf, geom)
+                    cursor.execute(command)
+                except:
+                    if DEBUG: print "insertion not succeeded (", eid, ")"
+#                    raise
+            connection.commit()
+            cursor.close()
+            connection.close()
+    
+    def unvisited_edge(self, node):
+        """Returns edge not yet visited at given ``node''
+        """
+        VISITED = 1
+        edge, out, angle = node.first_edge, node.first_out, node.first_angle
+        if edge.label != VISITED and edge.right_face_id is not None and edge.left_face_id is not None:
+            return edge, out, angle
+        else:
+            edge, out, angle, = node.ccw_next_edge(edge, out)
+            while edge is not node.first_edge:
+                if edge.label != VISITED and edge.right_face_id is not None and edge.left_face_id is not None:
+                    break
+                edge, out, angle, = node.ccw_next_edge(edge, out)
+            return edge, out, angle
+
+    def make_edge_walk(self, edge, out, break_on_external, new_node_id):
+        """Visits edges, until node found, which does not have a degree of 2
+        """
+        if DEBUG: print "i'll break on external edge", break_on_external
+        VISITED = 1
+        EXTERNAL = 1
+        if out:
+            start_node = edge.start_node
+            end_node = edge.end_node
+            left_face_id = edge.left_face_id
+            right_face_id = edge.right_face_id
+            geom = edge.geometry
+        else:
+            start_node = edge.end_node
+            end_node = edge.start_node
+            left_face_id = edge.right_face_id
+            right_face_id = edge.left_face_id
+            geom = edge.geometry
+            geom.reverse()
+        start_edge = edge
+        edge.label = VISITED
+        guard = 0
+        if DEBUG: print "starting at", edge
+        while True:
+            if DEBUG: print "now at", edge
+            guard += 1
+            if guard > 2500:
+                raise ValueError('Too much iteration in make_edge_walk')
+            if end_node.degree != 2:
+                if DEBUG:  print "degree != 2"
+                break
+            if break_on_external and end_node.label == EXTERNAL: #
+                if DEBUG:  print "external"
+                break
+            edge, out, angle, = end_node.ccw_next_edge(edge, not out)
+            edge.label = VISITED
+            if edge is start_edge:
+                break
+            if out:
+                end_node = edge.end_node
+                geom.extend(edge.geometry[1:])
+            else:
+                end_node = edge.start_node
+                geom.extend(edge.geometry[-2::-1])
+        if DEBUG: print geom[0], start_node.pt
+        if DEBUG: print geom[-1], end_node.pt
+        try:
+            assert coincident(geom[0], start_node.pt)
+            assert coincident(geom[-1], end_node.pt)
+        except:
+            print start_node.pt, geom[0], end_node.pt, geom[-1]
+            raise
+#        if left_face_id is None:
+#            left_face_id = -99999
+#        if right_face_id is None:
+#            right_face_id = -99999
+#        if start_node.id is None:
+#            start_node.id = self.new_node_id
+#        if end_node.id is None:
+#            start_node.id = self.new_node_id
+
+        assert start_node.id is not None
+        assert end_node.id is not None
+        assert left_face_id is not None
+        assert right_face_id is not None
+
+        self.new_edges.append((edge.edge_id, start_node.id, end_node.id, left_face_id, right_face_id, st_length(geom), geom))
+#        if DEBUG: print """INSERT INTO tmp_mesh_ln4 (id, start_node_id, end_node_id, left_face_id, right_face_id, geometry) VALUES
+#({0}, {1}, {2}, {3}, {4}, geomfromtext('{5}'));""".format(edge.edge_id, start_node.id, end_node.id, left_face_id, right_face_id, geom)
+
+
+#def coincident(a, b):
+#    EPS = 1e-6
+#    dx = a.x - b.x
+#    if dx < 0:
+#        dx *= -1
+#    dy = a.y - b.y
+#    if dy < 0:
+#        dy *= -1
+#    if dx < EPS and dy < EPS:
+#        return True
+#    else:
+#        return False
