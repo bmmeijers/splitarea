@@ -1,14 +1,8 @@
-#from math import atan2, degrees, pi, hypot, cos, sin
-#from brep.util import st_length
 from simplegeom.geometry import LineString
 from mesher.mesh import coincident
 from flagging import angle
-#from snap import SnappingGrid
-#PRECISION = 1000000
+
 DEBUG = False
-#def node_key(point):
-#    return "{0}_{1}".format(int(round(point.x * PRECISION, 6)), 
-#                            int(round(point.y * PRECISION, 6)) )
 
 class SkeletonNode:
 
@@ -313,9 +307,7 @@ class SkeletonEdge:
 
 class SkeletonGraph:
     
-    def __init__(self, debug = False):
-        global DEBUG
-        DEBUG = debug
+    def __init__(self):
         self.nodes = {}
         self.faces = {}
         self.ext = set()
@@ -323,26 +315,11 @@ class SkeletonGraph:
         self.new_edges = []
         self.universe_id = None
         
-#        self.snap = {}
-#        self.snapping_grid = SnappingGrid()
-#        self.snapping_grid.set_precision(8)
-#        self.snapping_grid.set_grid_size(4)
-    
-    def add_node(self, pt, vertex_id, external_id):#point, external_id):
-        print "adding node", vertex_id, external_id, " ", pt
-#        if point not in self.snap:
-#            key = external_id
-#            self.snap[point] = key
-#        else:
-#            key = self.snap[point]
-#        key = self.snapping_grid.make_key(point) # node_key(point)
+    def add_node(self, pt, vertex_id, external_id): 
         if vertex_id not in self.nodes:
-            print "making new node", vertex_id
             n = SkeletonNode(vertex_id, external_id, pt)
-            # n = SkeletonNode(external_id, point)
             self.nodes[vertex_id] = n
         else:
-            print "reusing node", vertex_id
             n = self.nodes[vertex_id]
         return n
     
@@ -366,9 +343,7 @@ class SkeletonGraph:
                     end_external = False, # True if end_vertex_id is None
                     unmovable = False):
         EXTERNAL = 1
-        
-        print "adding", edge_id, "with", geometry
-        
+
         sn = self.add_node(geometry[0], start_vertex_id, start_node_id)
         if DEBUG: print sn
         if start_external:
@@ -378,13 +353,13 @@ class SkeletonGraph:
         try:
             assert coincident(geometry[0], sn.pt)
         except:
-            print sn.pt
+            print geometry[0], sn.pt
             raise
             
         try:
             assert coincident(geometry[-1], en.pt)
         except:
-            print en.pt, geometry[-1]
+            print geometry[-1], en.pt 
             raise
         
         if DEBUG: print en
@@ -406,15 +381,13 @@ class SkeletonGraph:
         """Deleting a node from the structure. The node should not be connected
         any more (i.e. degree == 0).
         """
-#        raise ValueError("Here we have a problem, as the grid is not there")
-#        key = self.snapping_grid.make_key(node.pt) #node_key(node.pt)
         key = node.id
         assert self.nodes[key].degree == 0
         del self.nodes[key]
 
     def create_shortcut_edge(self, node):
         edge, out = node.first_edge, node.first_out
-        ccw_edge, ccw_out, ccw_angle, = node.ccw_next_edge(edge, out)
+        ccw_edge, ccw_out, _, = node.ccw_next_edge(edge, out)
         # get left / right, start / end, geometry for short cut edge
         new_edge_id = edge.edge_id
         if out:
@@ -441,8 +414,8 @@ class SkeletonGraph:
                     geom,
                     external = False,
                     edge_id = new_edge_id,
-                    start_vertex_id = new_start.id, #self.snapping_grid.make_key(new_start.pt), 
-                    end_vertex_id = new_end.id,# self.snapping_grid.make_key(new_end.pt),
+                    start_vertex_id = new_start.id, 
+                    end_vertex_id = new_end.id,
                     left_face_id = new_left_face_id, 
                     right_face_id = new_right_face_id,
                     start_external = False,
@@ -511,7 +484,6 @@ class SkeletonGraph:
         BOTH = LEFT + RIGHT
         self.label_edges(INIT)
         for edge in self.ext:
-            print "starting at", edge
             if edge.label == BOTH:
                 continue
             else:
@@ -552,7 +524,7 @@ class SkeletonGraph:
                             visit_left = edge.rccw_out
                             edge = edge.rccw
                         # check that turning around a node goes well
-                        if False:
+                        if True:
                             tmp_fid = None
                             if visit_left and edge.left_face_id is not None:
                                 tmp_fid = edge.left_face_id
@@ -932,19 +904,16 @@ SELECT AddGeometryColumn('tmp_mesh_segments', 'geometry', -1, 'LINESTRING', 2);
                 en = edge.end_node
                 try:
                     assert type(sn.id) is type(1)
-                    print type(sn.id), type(1), sn, sn.id
                 except AssertionError:
                     raise ValueError("Node {}, id has no int type".format(sn))
                 
                 try:
                     assert type(en.id) is type(1)
                 except AssertionError:
-                    print type(en.id), type(1), en, en.id
                     raise ValueError("Node {}, id has no int type".format(sn))
-                    raise
                 lf_id = edge.left_face_id
                 rf_id = edge.right_face_id
-                check = (min(lf_id,rf_id),max(lf_id,rf_id))
+                check = (min(lf_id,rf_id), max(lf_id,rf_id))
                 if DEBUG: print "start:", edge.edge_id, "st:", sn.id, "en:", en.id
                 geom = edge.geometry
                 out = True #e->s, outgoing from s 
@@ -1053,8 +1022,8 @@ SELECT AddGeometryColumn('tmp_mesh_segments', 'geometry', -1, 'LINESTRING', 2);
                     raise
                 assert sn.id is not None
                 assert en.id is not None
-                assert lf_id is not None
-                assert rf_id is not None
+#                assert lf_id is not None
+#                assert rf_id is not None
                 # TODO: skip length calculation
                 self.new_edge_id += 1
                 #new = (start.edge_id, sn.id, en.id, lf_id, rf_id, st_length(geom), geom)
@@ -1062,52 +1031,52 @@ SELECT AddGeometryColumn('tmp_mesh_segments', 'geometry', -1, 'LINESTRING', 2);
                 self.new_edges.append(new)
 #        for new in self.new_edges:
 #            print new
-        if DEBUG:
-            from psycopg2 import connect
-            from connect import auth_params
-            auth = auth_params()
-            connection = connect(host='%s' % auth['host'], 
-                                      port=auth['port'], 
-                                      database='%s' % auth['database'], 
-                                      user='%s' % auth['username'], 
-                                      password='%s' % auth['password'])
-            cursor = connection.cursor()
-            cursor.execute("""
-    DROP TABLE IF EXISTS tmp_mesh_ln4;""")
-            cursor.execute("""
-    CREATE TABLE tmp_mesh_ln4
-    (
-        id int8 UNIQUE NOT NULL,
-        start_node_id varchar,
-        end_node_id varchar,
-        left_face_id varchar,
-        right_face_id varchar
-    )  WITH OIDS;
-    """)
-            cursor.execute("""
-    SELECT AddGeometryColumn('tmp_mesh_ln4', 'geometry', -1, 'LINESTRING', 2);
-    """)
-            cursor.execute("""TRUNCATE TABLE tmp_mesh_ln4;""")
-            connection.commit()
-            for eid, sn, en, lf, rf, length, geom, in self.new_edges:
-                try:
-                    command = """INSERT INTO tmp_mesh_ln4 (id, start_node_id, end_node_id, left_face_id, right_face_id, geometry) VALUES
-    ('{0}', '{1}', '{2}', '{3}', '{4}', geomfromtext('{5}'));""".format(eid, sn, en, lf, rf, geom)
-                    cursor.execute(command)
-                    if DEBUG: print "insertion succeeded (", eid, ")"
-                except Exception, err:
-                    if DEBUG: print "insertion not succeeded (", eid, ")", err
-    #                    raise
-            connection.commit()
-            cursor.close()
-            connection.close()
+#        if DEBUG:
+#            from psycopg2 import connect
+#            from connect import auth_params
+#            auth = auth_params()
+#            connection = connect(host='%s' % auth['host'], 
+#                                      port=auth['port'], 
+#                                      database='%s' % auth['database'], 
+#                                      user='%s' % auth['username'], 
+#                                      password='%s' % auth['password'])
+#            cursor = connection.cursor()
+#            cursor.execute("""
+#    DROP TABLE IF EXISTS tmp_mesh_ln4;""")
+#            cursor.execute("""
+#    CREATE TABLE tmp_mesh_ln4
+#    (
+#        id int8 UNIQUE NOT NULL,
+#        start_node_id varchar,
+#        end_node_id varchar,
+#        left_face_id varchar,
+#        right_face_id varchar
+#    )  WITH OIDS;
+#    """)
+#            cursor.execute("""
+#    SELECT AddGeometryColumn('tmp_mesh_ln4', 'geometry', -1, 'LINESTRING', 2);
+#    """)
+#            cursor.execute("""TRUNCATE TABLE tmp_mesh_ln4;""")
+#            connection.commit()
+#            for eid, sn, en, lf, rf, length, geom, in self.new_edges:
+#                try:
+#                    command = """INSERT INTO tmp_mesh_ln4 (id, start_node_id, end_node_id, left_face_id, right_face_id, geometry) VALUES
+#    ('{0}', '{1}', '{2}', '{3}', '{4}', geomfromtext('{5}'));""".format(eid, sn, en, lf, rf, geom)
+#                    cursor.execute(command)
+#                    if DEBUG: print "insertion succeeded (", eid, ")"
+#                except Exception, err:
+#                    if DEBUG: print "insertion not succeeded (", eid, ")", err
+#    #                    raise
+#            connection.commit()
+#            cursor.close()
+#            connection.close()
         return
 
         # from longest edges possible starting from a node where degree != 2
         for node in self.nodes.itervalues():
             if node.degree != 2: # node.degree != 2 or 
                 while True:
-                    start_edge, start_out, start_angle, = self.unvisited_edge(node)
+                    start_edge, start_out, _, = self.unvisited_edge(node)
                     if start_edge.label == VISITED:
                         break
                     else:
@@ -1117,46 +1086,46 @@ SELECT AddGeometryColumn('tmp_mesh_segments', 'geometry', -1, 'LINESTRING', 2);
         for edge in self.edges:
             if edge.label != VISITED:
                 if DEBUG: print "walking over rem. edges"
-                start_edge, start_out, start_angle, = self.unvisited_edge(edge.start_node)
+                start_edge, start_out, _, = self.unvisited_edge(edge.start_node)
                 self.new_node_id += 1
                 self.make_edge_walk(start_edge, start_out, False, self.new_node_id)
         # 
-        if DEBUG:
-            from psycopg2 import connect
-            from connect import auth_params
-            auth = auth_params()
-            connection = connect(host='%s' % auth['host'], 
-                                      port=auth['port'], 
-                                      database='%s' % auth['database'], 
-                                      user='%s' % auth['username'], 
-                                      password='%s' % auth['password'])
-            cursor = connection.cursor()
-            cursor.execute("""
-    DROP TABLE IF EXISTS tmp_mesh_ln4;""")
-            cursor.execute("""
-    CREATE TABLE tmp_mesh_ln4
-    (
-        id int8 UNIQUE NOT NULL,
-        start_node_id int,
-        end_node_id int,
-        left_face_id int,
-        right_face_id int
-    )  WITH OIDS;
-    """)
-            cursor.execute("""
-    SELECT AddGeometryColumn('tmp_mesh_ln4', 'geometry', -1, 'LINESTRING', 2);
-    """)
-            for eid, sn, en, lf, rf, length, geom, in self.new_edges:
-                try:
-                    command = """INSERT INTO tmp_mesh_ln4 (id, start_node_id, end_node_id, left_face_id, right_face_id, geometry) VALUES
-    ({0}, {1}, {2}, {3}, {4}, geomfromtext('{5}'));""".format(eid, sn, en, lf, rf, geom)
-                    cursor.execute(command)
-                except:
-                    if DEBUG: print "insertion not succeeded (", eid, ")"
-#                    raise
-            connection.commit()
-            cursor.close()
-            connection.close()
+#        if DEBUG:
+#            from psycopg2 import connect
+#            from connect import auth_params
+#            auth = auth_params()
+#            connection = connect(host='%s' % auth['host'], 
+#                                      port=auth['port'], 
+#                                      database='%s' % auth['database'], 
+#                                      user='%s' % auth['username'], 
+#                                      password='%s' % auth['password'])
+#            cursor = connection.cursor()
+#            cursor.execute("""
+#    DROP TABLE IF EXISTS tmp_mesh_ln4;""")
+#            cursor.execute("""
+#    CREATE TABLE tmp_mesh_ln4
+#    (
+#        id int8 UNIQUE NOT NULL,
+#        start_node_id int,
+#        end_node_id int,
+#        left_face_id int,
+#        right_face_id int
+#    )  WITH OIDS;
+#    """)
+#            cursor.execute("""
+#    SELECT AddGeometryColumn('tmp_mesh_ln4', 'geometry', -1, 'LINESTRING', 2);
+#    """)
+#            for eid, sn, en, lf, rf, length, geom, in self.new_edges:
+#                try:
+#                    command = """INSERT INTO tmp_mesh_ln4 (id, start_node_id, end_node_id, left_face_id, right_face_id, geometry) VALUES
+#    ({0}, {1}, {2}, {3}, {4}, geomfromtext('{5}'));""".format(eid, sn, en, lf, rf, geom)
+#                    cursor.execute(command)
+#                except:
+#                    if DEBUG: print "insertion not succeeded (", eid, ")"
+##                    raise
+#            connection.commit()
+#            cursor.close()
+#            connection.close()
     
     def unvisited_edge(self, node):
         """Returns edge not yet visited at given ``node''
@@ -1239,7 +1208,7 @@ SELECT AddGeometryColumn('tmp_mesh_segments', 'geometry', -1, 'LINESTRING', 2);
         assert left_face_id is not None
         assert right_face_id is not None
 
-        self.new_edges.append((edge.edge_id, start_node.id, end_node.id, left_face_id, right_face_id, st_length(geom), geom))
+        self.new_edges.append((edge.edge_id, start_node.id, end_node.id, left_face_id, right_face_id, geom.length, geom))
 #        if DEBUG: print """INSERT INTO tmp_mesh_ln4 (id, start_node_id, end_node_id, left_face_id, right_face_id, geometry) VALUES
 #({0}, {1}, {2}, {3}, {4}, geomfromtext('{5}'));""".format(edge.edge_id, start_node.id, end_node.id, left_face_id, right_face_id, geom)
 

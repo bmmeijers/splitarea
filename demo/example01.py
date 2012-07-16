@@ -43,7 +43,9 @@ def test():
     right_x = ev.xmax + half_dx + eps
     right_y = ev.ymin - eps
     
-    bnd = [Vertex(left_x,left_y), Vertex(right_x,right_y), Vertex(top_x,top_y)]
+    bnd = [Vertex(left_x,left_y), 
+        Vertex(right_x,right_y), 
+        Vertex(top_x,top_y)]
     # return
     mesh = Mesh(boundary = bnd)
 #    mesh = Mesh()
@@ -169,11 +171,8 @@ def test():
     fh.close()
         
     skeleton.visualize_nodes()
-    
     skeleton.label_sides()
-
     skeleton.prune_branches()
-    
     skeleton.find_new_edges()
     
     fh = open("/tmp/edges_new.wkt", "w")
@@ -181,5 +180,6 @@ def test():
     for eid, sn, en, lf, rf, length, geom, in skeleton.new_edges:
         print >> fh, eid, ";", sn,";",  en, ";", lf, ";", rf, ";", length,";",  geom
     fh.close()
+
 if __name__ == '__main__':
     test()

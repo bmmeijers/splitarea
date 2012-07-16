@@ -1,0 +1,3 @@
+
+syntax: regexp
+^src/splitarea\.egg-info$

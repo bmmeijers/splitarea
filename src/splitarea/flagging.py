@@ -267,7 +267,7 @@ class TriangleVisitor:
                     start, end = alternative
                     alpha = angle(start, end)
                     for i, xx, in enumerate(start.label):
-                        face_id, cw_id, cw_angle, ccw_id, ccw_angle, = xx
+                        _, _, cw_angle, _, ccw_angle, = xx
                         if cw_angle < alpha and ccw_angle > alpha:
                             break
                     prv = i - 1
