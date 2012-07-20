@@ -9,7 +9,7 @@ class SkeletonNode:
     def __init__(self, vertex_id, external_id, pt):
         self.id = vertex_id
         self.external_id = external_id
-        self.pt = pt
+        self.geometry = pt
 
         self.first_edge = None
         self.first_out = None
@@ -20,9 +20,9 @@ class SkeletonNode:
         
     def __str__(self):
         if self.id is not None:
-            return "N<%s (%s)>" % (self.id, self.pt)
+            return "N<%s (%s)>" % (self.id, self.geometry)
         else:
-            return "N<-- (%s)>" % (self.pt)
+            return "N<-- (%s)>" % (self.geometry)
     
     def remove_edge(self, edge, out):
         """Removes an edge from the skeleton.
@@ -79,8 +79,8 @@ class SkeletonNode:
             assert self.degree == 0
             return False
             
-    def add_edge(self, edge, out):
-        if out:
+    def add_edge(self, edge, begins):
+        if begins:
             assert edge.start_node is self
         else:
             assert edge.end_node is self
@@ -88,12 +88,12 @@ class SkeletonNode:
         self.degree += 1
         
         if DEBUG:
-            print "adding edge", edge.edge_id, "at", self, "(",self.pt,")"
+            print "adding edge", edge.edge_id, "at", self, "(",self.geometry,")"
         
         if self.first_edge is None:
             self.first_edge = edge
-            self.first_out = out
-            if out:
+            self.first_out = begins
+            if begins:
                 # angle a->b, where a is node (1st vertex) and b is 2nd vertex of line
                 new_angle = angle(edge.geometry[0], edge.geometry[1])
                 edge.start_angle = new_angle 
@@ -102,19 +102,19 @@ class SkeletonNode:
                 new_angle = angle(edge.geometry[-1], edge.geometry[-2])
                 edge.end_angle = new_angle 
             self.first_angle = new_angle
-            if out:
+            if begins:
                 edge.lcw = edge
-                edge.lcw_out = out
+                edge.lcw_out = begins
                 edge.rccw = edge
-                edge.rccw_out = out
+                edge.rccw_out = begins
             else:
                 edge.lccw = edge
-                edge.lccw_out = out
+                edge.lccw_out = begins
                 edge.rcw = edge
-                edge.rcw_out = out
+                edge.rcw_out = begins
         else:
             # add edge
-            if out:
+            if begins:
                 # angle a->b, where a is node (1st vertex) and b is 2nd vertex of line
                 new_angle = angle(edge.geometry[0], edge.geometry[1]) 
                 edge.start_angle = new_angle 
@@ -144,12 +144,12 @@ class SkeletonNode:
             # next_edge
             if next_out:
                 next_edge.rccw = edge # rccw, new
-                next_edge.rccw_out = out
+                next_edge.rccw_out = begins
             else:
                 next_edge.lccw = edge # lccw, new
-                next_edge.lccw_out = out
+                next_edge.lccw_out = begins
             # edge
-            if out:
+            if begins:
                 edge.lcw = next_edge # lcw, next
                 edge.lcw_out = next_out
                 edge.rccw = prev_edge # rccw, prev
@@ -162,23 +162,23 @@ class SkeletonNode:
             # prev_edge
             if prev_out:
                 prev_edge.lcw = edge # lcw, new
-                prev_edge.lcw_out = out
+                prev_edge.lcw_out = begins
             else:
                 prev_edge.rcw = edge # rcw, new
-                prev_edge.rcw_out = out
+                prev_edge.rcw_out = begins
 
             # update first edge of this node,
             # if new edge has smallest angle
             if new_angle < self.first_angle:
                 self.first_edge = edge
-                self.first_out = out
+                self.first_out = begins
                 self.first_angle = new_angle
         
         if DEBUG: print " fin adding **", edge
     
-    def ccw_next_edge(self, edge, out):
+    def ccw_next_edge(self, edge, begins):
         # take next counter clockwise edge at this node
-        if out:
+        if begins:
             next_edge = edge.lcw
             next_out = edge.lcw_out
         else:
@@ -191,9 +191,9 @@ class SkeletonNode:
             next_angle = next_edge.end_angle
         return (next_edge, next_out, next_angle,)
 
-    def cw_next_edge(self, edge, out):
+    def cw_next_edge(self, edge, begins):
         # take next clockwise edge at this node
-        if out:
+        if begins:
             next_edge = edge.rccw
             next_out = edge.rccw_out
         else:
@@ -316,6 +316,7 @@ class SkeletonGraph:
         self.universe_id = None
         
     def add_node(self, pt, vertex_id, external_id): 
+        assert vertex_id is not None
         if vertex_id not in self.nodes:
             n = SkeletonNode(vertex_id, external_id, pt)
             self.nodes[vertex_id] = n
@@ -351,15 +352,15 @@ class SkeletonGraph:
         en = self.add_node(geometry[-1], end_vertex_id, end_node_id)
         
         try:
-            assert coincident(geometry[0], sn.pt)
+            assert coincident(geometry[0], sn.geometry)
         except:
-            print geometry[0], sn.pt
+            print geometry[0], sn.geometry
             raise
             
         try:
-            assert coincident(geometry[-1], en.pt)
+            assert coincident(geometry[-1], en.geometry)
         except:
-            print geometry[-1], en.pt 
+            print geometry[-1], en.geometry 
             raise
         
         if DEBUG: print en
@@ -370,8 +371,8 @@ class SkeletonGraph:
                             left_face_id, right_face_id, 
                             geometry, external, unmovable)
         if DEBUG: print "edge", edge.edge_id, "", sn, "", en
-        sn.add_edge(edge, out = True)
-        en.add_edge(edge, out = False)
+        sn.add_edge(edge, begins = True)
+        en.add_edge(edge, begins = False)
         
         self.edges.append(edge) #add(edge)
         if external: # thus external edge
@@ -403,8 +404,8 @@ class SkeletonGraph:
         else:
             new_end = ccw_edge.start_node
         geom = LineString()
-        geom.append(new_start.pt)
-        geom.append(new_end.pt)
+        geom.append(new_start.geometry)
+        geom.append(new_end.geometry)
         # remove edge
         self.remove_edge(edge)
         # remove ccw_edge
@@ -760,8 +761,8 @@ class SkeletonGraph:
     def prune_branches(self, debug = False):
         """Prune branches, i.e. edges that have same face_id on both sides
         """
-        if debug:
-            if DEBUG: print "pruning branches"
+        if debug: 
+            print "pruning branches"
         removal = set()
         for edge in self.edges:
             if edge.left_face_id == edge.right_face_id:
@@ -769,7 +770,7 @@ class SkeletonGraph:
         for edge in removal:
             # Prune ('skim') or just remove
             if debug:
-                if DEBUG: print "removing", edge
+                print "removing", edge
 #            self.remove_edge(edge)
             self.prune_edge(edge)
         del removal
@@ -815,7 +816,7 @@ neighbours varchar
         fh = open('/tmp/nodes.wkt', 'w')
         fh.write("nid;geometry\n")
         for node in self.nodes.itervalues():
-            print >> fh, node.id, ";", node.pt
+            print >> fh, node.id, ";", node.geometry
         fh.close()
 #        from brep.conn import ConnectionFactory
 #        conn = ConnectionFactory()
@@ -833,7 +834,7 @@ neighbours varchar
 #        """
 #        cursor.execute(command)
 #        for node in self.nodes.itervalues():
-#            command = "INSERT INTO tmp_mesh_pt2 (id, txt, geometry) VALUES ({0}, '{1}', geomfromtext('{2}'));".format(id(node), node.id, node.pt)
+#            command = "INSERT INTO tmp_mesh_pt2 (id, txt, geometry) VALUES ({0}, '{1}', geomfromtext('{2}'));".format(id(node), node.id, node.geometry)
 #            cursor.execute(command)
 #        cursor.close()
 #        conn.commit()
@@ -1007,18 +1008,18 @@ SELECT AddGeometryColumn('tmp_mesh_segments', 'geometry', -1, 'LINESTRING', 2);
                     edge.label = VISITED
                 if DEBUG: print "fin, group found:", group_by
                 try:
-                    assert coincident(geom[0], sn.pt)
+                    assert coincident(geom[0], sn.geometry)
                 except AssertionError:
                     print geom
-                    print sn, en, sn.pt, en.pt
-                    print sn.pt, "!=", geom[0]
+                    print sn, en, sn.geometry, en.geometry
+                    print sn.geometry, "!=", geom[0]
                     raise
                 try:
-                    assert coincident(geom[-1], en.pt)
+                    assert coincident(geom[-1], en.geometry)
                 except AssertionError:
                     print geom
-                    print sn, en, sn.pt, en.pt
-                    print en.pt, "!=", geom[-1]
+                    print sn, en, sn.geometry, en.geometry
+                    print en.geometry, "!=", geom[-1]
                     raise
                 assert sn.id is not None
                 assert en.id is not None
@@ -1186,13 +1187,13 @@ SELECT AddGeometryColumn('tmp_mesh_segments', 'geometry', -1, 'LINESTRING', 2);
             else:
                 end_node = edge.start_node
                 geom.extend(edge.geometry[-2::-1])
-        if DEBUG: print geom[0], start_node.pt
-        if DEBUG: print geom[-1], end_node.pt
+        if DEBUG: print geom[0], start_node.geometry
+        if DEBUG: print geom[-1], end_node.geometry
         try:
-            assert coincident(geom[0], start_node.pt)
-            assert coincident(geom[-1], end_node.pt)
+            assert coincident(geom[0], start_node.geometry)
+            assert coincident(geom[-1], end_node.geometry)
         except:
-            print start_node.pt, geom[0], end_node.pt, geom[-1]
+            print start_node.geometry, geom[0], end_node.geometry, geom[-1]
             raise
 #        if left_face_id is None:
 #            left_face_id = -99999

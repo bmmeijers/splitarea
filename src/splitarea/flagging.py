@@ -57,64 +57,64 @@ class TriangleVisitor:
         # start at `infinity' point (from large triangle)
         start = None
         walk = self.mesh.locate(self.mesh.vertices[0])
-        he = walk[0]
-        stack = [he]
+        edge = walk[0]
+        stack = [edge]
         while stack:
-            he = stack.pop()
-            # flag three he's that form triangle as visited 
-            he.flag += EXTERIOR
-            he.next.flag += EXTERIOR
-            he.next.next.flag += EXTERIOR
+            edge = stack.pop()
+            # flag three edge's that form triangle as visited 
+            edge.flag += EXTERIOR
+            edge.next.flag += EXTERIOR
+            edge.next.next.flag += EXTERIOR
             # stack neighboring triangles or break and start `interior' walk
             # first triangle
-            if he.sibling is not None and he.sibling.constraint is True:
-                start = he.sibling
+            if edge.sibling is not None and edge.sibling.constraint is True:
+                start = edge.sibling
                 break
-            elif he.sibling is not None and \
-                he.sibling.constraint is False and UNKNOWN == he.sibling.flag:
-                stack.append(he.sibling)
+            elif edge.sibling is not None and \
+                edge.sibling.constraint is False and UNKNOWN == edge.sibling.flag:
+                stack.append(edge.sibling)
             # second triangle
-            if he.next.sibling is not None and \
-                he.next.sibling.constraint is True:
-                start = he.next.sibling
+            if edge.next.sibling is not None and \
+                edge.next.sibling.constraint is True:
+                start = edge.next.sibling
                 break
-            elif he.next.sibling is not None and \
-                he.next.sibling.constraint is False and \
-                UNKNOWN == he.next.sibling.flag:
-                stack.append(he.next.sibling)
+            elif edge.next.sibling is not None and \
+                edge.next.sibling.constraint is False and \
+                UNKNOWN == edge.next.sibling.flag:
+                stack.append(edge.next.sibling)
             # third triangle
-            if he.next.next.sibling is not None and \
-                he.next.next.sibling.constraint is True:
-                start = he.next.next.sibling
+            if edge.next.next.sibling is not None and \
+                edge.next.next.sibling.constraint is True:
+                start = edge.next.next.sibling
                 break
-            elif he.next.next.sibling is not None and \
-                he.next.next.sibling.constraint is False and \
-                UNKNOWN == he.next.next.sibling.flag:
-                stack.append(he.next.next.sibling)
+            elif edge.next.next.sibling is not None and \
+                edge.next.next.sibling.constraint is False and \
+                UNKNOWN == edge.next.next.sibling.flag:
+                stack.append(edge.next.next.sibling)
         # interior walk
         assert start is not None
         stack = [start]
         while stack:
-            he = stack.pop()
-            if he.flag == INTERIOR:
+            edge = stack.pop()
+            if edge.flag == INTERIOR:
                 # already entered via other side, so we skip this time
                 continue
-            he.flag += INTERIOR
-            he.next.flag += INTERIOR
-            he.next.next.flag += INTERIOR
-            if he.flag == INTERIOR:
-                self.triangles.append(he)
+            edge.flag += INTERIOR
+            edge.next.flag += INTERIOR
+            edge.next.next.flag += INTERIOR
+            if edge.flag == INTERIOR:
+                self.triangles.append(edge)
             # stack unvisited ones (flag is UNKNOWN), 
             # but do not go over constraints (this leaves out holes)
-            if he.sibling.constraint is False and \
-                UNKNOWN == he.sibling.flag:
-                stack.append(he.sibling)
-            if he.next.sibling.constraint is False and \
-                UNKNOWN == he.next.sibling.flag:
-                stack.append(he.next.sibling)
-            if he.next.next.sibling.constraint is False and \
-                UNKNOWN == he.next.next.sibling.flag:
-                stack.append(he.next.next.sibling)
+            if edge.sibling.constraint is False and \
+                UNKNOWN == edge.sibling.flag:
+                stack.append(edge.sibling)
+            if edge.next.sibling.constraint is False and \
+                UNKNOWN == edge.next.sibling.flag:
+                stack.append(edge.next.sibling)
+            if edge.next.next.sibling.constraint is False and \
+                UNKNOWN == edge.next.next.sibling.flag:
+                stack.append(edge.next.next.sibling)
 
     def add_segment(self, v0, v1):
         if v0.flag == 3:
@@ -135,11 +135,11 @@ class TriangleVisitor:
         elif start.flag == 3:
             self.bridges[start].append( (start, end) )
 
-    def process_0triangle(self, he):
-        assert not he.constraint
-        assert not he.next.constraint
-        assert not he.next.next.constraint
-        a, b, c = he.origin, he.next.origin, he.next.next.origin
+    def process_0triangle(self, edge):
+        assert not edge.constraint
+        assert not edge.next.constraint
+        assert not edge.next.next.constraint
+        a, b, c = edge.origin, edge.next.origin, edge.next.next.origin
         # segments
         mid_pt = mid_point3(a, b, c)
         pt0 = mid_point2(a, b)
@@ -156,11 +156,11 @@ class TriangleVisitor:
         self.add_connector(b, pt1)
         self.add_connector(c, pt2)
 
-    def process_1triangle(self, he):
-        assert he.constraint
-        assert not he.next.constraint
-        assert not he.next.next.constraint
-        a, b, c = he.origin, he.next.origin, he.next.next.origin
+    def process_1triangle(self, edge):
+        assert edge.constraint
+        assert not edge.next.constraint
+        assert not edge.next.next.constraint
+        a, b, c = edge.origin, edge.next.origin, edge.next.next.origin
         # segments
         pt0 = mid_point2(c, a)
         pt1 = mid_point2(b, c)
@@ -171,11 +171,11 @@ class TriangleVisitor:
         assert pt0.flag == 0
         self.add_segment( pt0, pt1 )
 
-    def process_2triangle(self, he):
-        assert he.constraint
-        assert he.next.constraint
-        assert not he.next.next.constraint
-        a, b, c = he.origin, he.next.origin, he.next.next.origin
+    def process_2triangle(self, edge):
+        assert edge.constraint
+        assert edge.next.constraint
+        assert not edge.next.next.constraint
+        a, b, c = edge.origin, edge.next.origin, edge.next.next.origin
         pt0 = b
         pt1 = mid_point2(a, c)
         self.add_connector(c, pt1)                        
@@ -183,11 +183,11 @@ class TriangleVisitor:
         # propagate left / right info (can only happen to type2 and type3 triangles)
         self.add_segment( pt0, pt1 )
     
-    def process_3triangle(self, he):
-        assert he.constraint
-        assert he.next.constraint
-        assert he.next.next.constraint
-        a, b, c = he.origin, he.next.origin, he.next.next.origin
+    def process_3triangle(self, edge):
+        assert edge.constraint
+        assert edge.next.constraint
+        assert edge.next.next.constraint
+        a, b, c = edge.origin, edge.next.origin, edge.next.next.origin
         # segments
         mid_pt = mid_point3(a, b, c)
         #
@@ -238,8 +238,27 @@ class TriangleVisitor:
         # TODO: alternative: pick connector that has direction closest
         # to half of the angle which the two constrained edges make, 
         # going over the interior of the polygon
-        # From the node we can get back to the triangulation: node.he
-        # Then rotate around node by taking sibling.next, und so weiter :) 
+        # From the node we can get back to the triangulation: node.edge
+        # Then rotate around node by taking sibling.next, und so weiter :)
+        
+        # longest 
+#        for node in self.connectors:
+#            alternatives = self.connectors[node]
+#            if len(alternatives) == 1:
+#                segment = alternatives[0]
+#                self.segments.append(segment)
+#            else:
+#                pt0, pt1, = alternatives[0]
+#                longest = dist(pt0, pt1)
+#                segment = (pt0, pt1)
+#                for alternative in alternatives[1:]:
+#                    pt0, pt1, = alternative
+#                    d = dist(pt0, pt1)
+#                    if d > longest:
+#                        longest = d
+#                        segment = (pt0, pt1)
+#                self.segments.append(segment)
+        # shortest 
         for node in self.connectors:
             alternatives = self.connectors[node]
             if len(alternatives) == 1:
@@ -247,15 +266,16 @@ class TriangleVisitor:
                 self.segments.append(segment)
             else:
                 pt0, pt1, = alternatives[0]
-                longest = dist(pt0, pt1)
+                shortest = dist(pt0, pt1)
                 segment = (pt0, pt1)
                 for alternative in alternatives[1:]:
                     pt0, pt1, = alternative
                     d = dist(pt0, pt1)
-                    if d > longest:
-                        longest = d
+                    if d < shortest:
+                        shortest = d
                         segment = (pt0, pt1)
                 self.segments.append(segment)
+
 
         # special cases --> transfer L/R info into segment graph
         self.ext_segments = []
