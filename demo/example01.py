@@ -1,14 +1,20 @@
 from random import randint, seed
 from collections import defaultdict
 
-from mesher.mesh import Mesh, Vertex
-from mesher.utils import MeshVisualizer
+# from mesher.mesh import Mesh, Vertex
+# from mesher.utils import MeshVisualizer
 
 from simplegeom.geometry import LineString, Envelope, Point
 from simplegeom.wkt import loads
     
-from splitarea.flagging import TriangleVisitor 
+from splitarea.flagging import TriangleVisitor , TriVisitor, VoronoiVisitor
 from splitarea.skeleton import SkeletonGraph
+
+from tri import triangulate, polygon_as_points_and_segments
+from tri.delaunay import output_triangles, output_vertices
+from tri.delaunay import TriangleIterator, InteriorTriangleIterator, ConvexHullTriangleIterator
+from pprint import pprint
+import sys
 
 def test():
     
@@ -22,65 +28,101 @@ def test():
     """
     
     poly = loads(wkt)
-    #if DEBUG: print poly
-    ln = []
-    for ring in poly:
-        for vtx in ring:
-            ln.append(vtx)
-        
-    ev = poly.envelope
-    #if DEBUG: print ev
-    eps = 10000
-    half_dx = (ev.xmax - ev.xmin) / 2.0
-    dy = (ev.ymax - ev.ymin)
-    # top - middle
-    top_y = ev.ymax + dy + eps
-    top_x = ev.xmin + half_dx
-    # bottom - left
-    left_x = ev.xmin - half_dx - eps
-    left_y = ev.ymin - eps
-    # bottom - right
-    right_x = ev.xmax + half_dx + eps
-    right_y = ev.ymin - eps
     
-    bnd = [Vertex(left_x,left_y), 
-        Vertex(right_x,right_y), 
-        Vertex(top_x,top_y)]
-    # return
-    mesh = Mesh(boundary = bnd)
-#    mesh = Mesh()
-    prev_pt = None
-    seed("ab")
-    for i, pt in enumerate(ln):
-        vtx = Vertex(pt.x, pt.y)
-        
-        if i == 2:
-            vtx.flag = 1
-            ext_end = Point(pt.x, pt.y)
-            
-        elif i == 60:
-            vtx.flag = 1
-            ext_end2 = Point(pt.x, pt.y)    
-        else:
-            vtx.flag = 0 # int(randint(0, 10) in (5, ))
-        
-        vtx = mesh.insert(vtx)
-        vtx.gid = i
-        if i == 2:
-            ext_end_id = vtx.gid
-        elif i == 60:
-            ext_end2_id = vtx.gid
-        
-        if i > 0:
-            mesh.add_constraint( prev_pt, vtx )
-        prev_pt = vtx
-    
-    fh = open('/tmp/tris.wkt', 'w')
-    fh.write("geometry\n")
-    MeshVisualizer(mesh).list_triangles_wkt(fh)
-    fh.close()
+    print poly
+    points, segments = polygon_as_points_and_segments(poly)
+    pprint(points)
+    pprint(segments)
+    dt = triangulate(points, segments)
+    with open("/tmp/alltris.wkt", "w") as fh:
+        output_triangles([t for t in TriangleIterator(dt)], fh)
+    with open("/tmp/allvertices.wkt", "w") as fh:
+        output_vertices(dt.vertices, fh)
+    with open("/tmp/interiortris.wkt", "w") as fh:
+        output_triangles([t for t in InteriorTriangleIterator(dt)], fh)
+    with open("/tmp/hull.wkt", "w") as fh:
+        output_triangles([t for t in ConvexHullTriangleIterator(dt)], fh)
 
-    visitor = TriangleVisitor(mesh)
+#     #if DEBUG: print poly
+#     ln = []
+#     for ring in poly:
+#         for vtx in ring:
+#             ln.append(vtx)
+#         
+#     ev = poly.envelope
+#     #if DEBUG: print ev
+#     eps = 10000
+#     half_dx = (ev.xmax - ev.xmin) / 2.0
+#     dy = (ev.ymax - ev.ymin)
+#     # top - middle
+#     top_y = ev.ymax + dy + eps
+#     top_x = ev.xmin + half_dx
+#     # bottom - left
+#     left_x = ev.xmin - half_dx - eps
+#     left_y = ev.ymin - eps
+#     # bottom - right
+#     right_x = ev.xmax + half_dx + eps
+#     right_y = ev.ymin - eps
+#     
+#     bnd = [Vertex(left_x,left_y), 
+#         Vertex(right_x,right_y), 
+#         Vertex(top_x,top_y)]
+#     # return
+#     mesh = Mesh(boundary = bnd)
+# #    mesh = Mesh()
+#     prev_pt = None
+#     seed("ab")
+#     for i, pt in enumerate(ln):
+#         vtx = Vertex(pt.x, pt.y)
+#         
+#         if i == 2:
+#             vtx.flag = 1
+#             ext_end = Point(pt.x, pt.y)
+#             
+#         elif i == 60:
+#             vtx.flag = 1
+#             ext_end2 = Point(pt.x, pt.y)    
+#         else:
+#             vtx.flag = 0 # int(randint(0, 10) in (5, ))
+#         
+#         vtx = mesh.insert(vtx)
+#         vtx.gid = i
+#         if i == 2:
+#             ext_end_id = vtx.gid
+#         elif i == 60:
+#             ext_end2_id = vtx.gid
+#         
+#         if i > 0:
+#             mesh.add_constraint( prev_pt, vtx )
+#         prev_pt = vtx
+#     
+#     fh = open('/tmp/tris.wkt', 'w')
+#     fh.write("geometry\n")
+#     MeshVisualizer(mesh).list_triangles_wkt(fh)
+#     fh.close()
+
+    visitor = TriVisitor([t for t in InteriorTriangleIterator(dt)])
+    visitor.skeleton_segments()
+    with open("/tmp/skel0.wkt", "w") as fh:
+        fh.write("wkt\n")
+        for seg in visitor.segments:
+            fh.write("LINESTRING({0[0].x} {0[0].y}, {0[1].x} {0[1].y})\n".format(seg))
+
+    visitor = VoronoiVisitor([t for t in InteriorTriangleIterator(dt)])
+    visitor.skeleton_segments()
+    with open("/tmp/skel.wkt", "w") as fh:
+        fh.write("wkt\n")
+        for seg in visitor.segments:
+            fh.write("LINESTRING({0[0].x} {0[0].y}, {0[1].x} {0[1].y})\n".format(seg))
+
+    with open("/tmp/centres.wkt", "w") as fh:
+        fh.write("wkt\n")
+        for t, point in visitor.triangle_point.iteritems():
+            fh.write("POINT({0})\n".format(point))
+    
+    sys.exit()
+
+    visitor = TriangleVisitor(dt)
     visitor.skeleton_segments()
     visitor.pick_connectors()
 

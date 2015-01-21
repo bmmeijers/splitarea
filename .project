@@ -3,8 +3,8 @@
 	<name>splitarea</name>
 	<comment></comment>
 	<projects>
-		<project>mesher</project>
 		<project>simplegeom</project>
+		<project>tri</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>

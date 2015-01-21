@@ -1,5 +1,5 @@
 from simplegeom.geometry import LineString
-from mesher.mesh import coincident
+# from mesher.mesh import coincident
 from flagging import angle
 
 DEBUG = False
