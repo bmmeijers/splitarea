@@ -5,6 +5,8 @@ from math import atan2, pi
 from math import hypot
 
 from mesher.mesh import Vertex
+from warnings import warn
+from predicates import orient2d
 
 PI2 = 2 * pi
 
@@ -23,16 +25,42 @@ def mid_point2(pa, pb):
     mid.gid = tuple(L)
     return mid
 
-def mid_point3(pa, pb, pc):
-    mid = Vertex((pa.x + pb.x + pc.x) / 3.0, (pa.y + pb.y + pc.y) / 3.0 )
+def mid_point3(pa, pb, pc, factor = 2.):
+    A = dist(pb, pc)
+    B = dist(pc, pa)
+    C = dist(pa, pb)
+    # value between 1 and 2
+    #
+    # 1 = dented junction 
+    # 2 = T-junction
+    #
+    a_ = factor
+    smallest = A
+    b_ = 1.
+    c_ = 1.
+    if B < smallest:
+        a_ = 1.
+        b_ = factor
+        smallest = B
+    if C < smallest:
+        a_ = 1.
+        b_ = 1.
+        c_ = factor
+    d_ = a_ + b_ + c_
+#        D = a_*A + b_*B + c_*C
+    x = (a_*pa.x + b_*pb.x + c_*pc.x) / d_
+    y = (a_*pa.y + b_*pb.y + c_*pc.y) / d_
+#    mid = Vertex((pa.x + pb.x + pc.x) / 3.0, 
+#        (pa.y + pb.y + pc.y) / 3.0 )
+    mid = Vertex(x, y)
     L = [id(pa), id(pb), id(pc)]
     L.sort()
-    mid.gid = tuple(L) 
+    mid.gid = tuple(L)
     return mid
 
 def dist(v0, v1):
-    dx = v0.x - v1.x
-    dy = v0.y - v1.y
+    dx = v0[0] - v1[0]
+    dy = v0[1] - v1[1]
     return hypot(dx, dy)
 
 class TriangleVisitor:
@@ -48,7 +76,7 @@ class TriangleVisitor:
     def visit_interior_without_holes(self):
         """All triangles that lie on interior, excluding the ones in the holes
         are collected into self.triangles. A triangle is represented by
-        one, arbitrary half edge.
+        one, arbitrary halfedge.
         """
         UNKNOWN = 0
         EXTERIOR = 1
@@ -57,64 +85,66 @@ class TriangleVisitor:
         # start at `infinity' point (from large triangle)
         start = None
         walk = self.mesh.locate(self.mesh.vertices[0])
-        edge = walk[0]
-        stack = [edge]
+        he = walk[0]
+        stack = [he]
         while stack:
-            edge = stack.pop()
-            # flag three edge's that form triangle as visited 
-            edge.flag += EXTERIOR
-            edge.next.flag += EXTERIOR
-            edge.next.next.flag += EXTERIOR
+            he = stack.pop()
+            # flag three he's that form triangle as visited 
+            he.flag += EXTERIOR
+            he.next.flag += EXTERIOR
+            he.next.next.flag += EXTERIOR
             # stack neighboring triangles or break and start `interior' walk
             # first triangle
-            if edge.sibling is not None and edge.sibling.constraint is True:
-                start = edge.sibling
+            if he.sibling is not None and he.sibling.constraint is True:
+                start = he.sibling
                 break
-            elif edge.sibling is not None and \
-                edge.sibling.constraint is False and UNKNOWN == edge.sibling.flag:
-                stack.append(edge.sibling)
+            elif he.sibling is not None and \
+                he.sibling.constraint is False and UNKNOWN == he.sibling.flag:
+                stack.append(he.sibling)
             # second triangle
-            if edge.next.sibling is not None and \
-                edge.next.sibling.constraint is True:
-                start = edge.next.sibling
+            if he.next.sibling is not None and \
+                he.next.sibling.constraint is True:
+                start = he.next.sibling
                 break
-            elif edge.next.sibling is not None and \
-                edge.next.sibling.constraint is False and \
-                UNKNOWN == edge.next.sibling.flag:
-                stack.append(edge.next.sibling)
+            elif he.next.sibling is not None and \
+                he.next.sibling.constraint is False and \
+                UNKNOWN == he.next.sibling.flag:
+                stack.append(he.next.sibling)
             # third triangle
-            if edge.next.next.sibling is not None and \
-                edge.next.next.sibling.constraint is True:
-                start = edge.next.next.sibling
+            if he.next.next.sibling is not None and \
+                he.next.next.sibling.constraint is True:
+                start = he.next.next.sibling
                 break
-            elif edge.next.next.sibling is not None and \
-                edge.next.next.sibling.constraint is False and \
-                UNKNOWN == edge.next.next.sibling.flag:
-                stack.append(edge.next.next.sibling)
+            elif he.next.next.sibling is not None and \
+                he.next.next.sibling.constraint is False and \
+                UNKNOWN == he.next.next.sibling.flag:
+                stack.append(he.next.next.sibling)
         # interior walk
-        assert start is not None
+        if start is None: 
+            warn("No interior part found for creating skeleton")
+            return
         stack = [start]
         while stack:
-            edge = stack.pop()
-            if edge.flag == INTERIOR:
+            he = stack.pop()
+            if he.flag == INTERIOR:
                 # already entered via other side, so we skip this time
                 continue
-            edge.flag += INTERIOR
-            edge.next.flag += INTERIOR
-            edge.next.next.flag += INTERIOR
-            if edge.flag == INTERIOR:
-                self.triangles.append(edge)
+            he.flag += INTERIOR
+            he.next.flag += INTERIOR
+            he.next.next.flag += INTERIOR
+            if he.flag == INTERIOR:
+                self.triangles.append(he)
             # stack unvisited ones (flag is UNKNOWN), 
             # but do not go over constraints (this leaves out holes)
-            if edge.sibling.constraint is False and \
-                UNKNOWN == edge.sibling.flag:
-                stack.append(edge.sibling)
-            if edge.next.sibling.constraint is False and \
-                UNKNOWN == edge.next.sibling.flag:
-                stack.append(edge.next.sibling)
-            if edge.next.next.sibling.constraint is False and \
-                UNKNOWN == edge.next.next.sibling.flag:
-                stack.append(edge.next.next.sibling)
+            if he.sibling.constraint is False and \
+                UNKNOWN == he.sibling.flag:
+                stack.append(he.sibling)
+            if he.next.sibling.constraint is False and \
+                UNKNOWN == he.next.sibling.flag:
+                stack.append(he.next.sibling)
+            if he.next.next.sibling.constraint is False and \
+                UNKNOWN == he.next.next.sibling.flag:
+                stack.append(he.next.next.sibling)
 
     def add_segment(self, v0, v1):
         if v0.flag == 3:
@@ -135,11 +165,11 @@ class TriangleVisitor:
         elif start.flag == 3:
             self.bridges[start].append( (start, end) )
 
-    def process_0triangle(self, edge):
-        assert not edge.constraint
-        assert not edge.next.constraint
-        assert not edge.next.next.constraint
-        a, b, c = edge.origin, edge.next.origin, edge.next.next.origin
+    def process_0triangle(self, he):
+        assert not he.constraint
+        assert not he.next.constraint
+        assert not he.next.next.constraint
+        a, b, c = he.origin, he.next.origin, he.next.next.origin
         # segments
         mid_pt = mid_point3(a, b, c)
         pt0 = mid_point2(a, b)
@@ -156,14 +186,29 @@ class TriangleVisitor:
         self.add_connector(b, pt1)
         self.add_connector(c, pt2)
 
-    def process_1triangle(self, edge):
-        assert edge.constraint
-        assert not edge.next.constraint
-        assert not edge.next.next.constraint
-        a, b, c = edge.origin, edge.next.origin, edge.next.next.origin
+    def process_1triangle(self, he):
+        assert he.constraint
+        assert not he.next.constraint
+        assert not he.next.next.constraint
+        a, b, c = he.origin, he.next.origin, he.next.next.origin
+        
+        # Get length of the base of the triangle and its area, this gets the 
+        # height of the triangle. 
+        # This height is an approximation of the river width at this point
+        base = dist(a, b)
+        if base:
+            height = abs(orient2d(a, b, c)) / base
+        else:
+            # prevent div by zero
+            height = 0.
+        
+        width = round(height * 2.)  / 2.
+        
         # segments
         pt0 = mid_point2(c, a)
         pt1 = mid_point2(b, c)
+        pt0.info = {'width': width}
+        pt1.info = {'width': width}
         # connectors
         self.add_connector(b, pt1)
         self.add_connector(c, pt0)
@@ -171,23 +216,23 @@ class TriangleVisitor:
         assert pt0.flag == 0
         self.add_segment( pt0, pt1 )
 
-    def process_2triangle(self, edge):
-        assert edge.constraint
-        assert edge.next.constraint
-        assert not edge.next.next.constraint
-        a, b, c = edge.origin, edge.next.origin, edge.next.next.origin
+    def process_2triangle(self, he):
+        assert he.constraint
+        assert he.next.constraint
+        assert not he.next.next.constraint
+        a, b, c = he.origin, he.next.origin, he.next.next.origin
         pt0 = b
         pt1 = mid_point2(a, c)
         self.add_connector(c, pt1)                        
-        # tricky situation, point between two constrained edges should 
+        # tricky situation, point between two constrained hes should 
         # propagate left / right info (can only happen to type2 and type3 triangles)
         self.add_segment( pt0, pt1 )
     
-    def process_3triangle(self, edge):
-        assert edge.constraint
-        assert edge.next.constraint
-        assert edge.next.next.constraint
-        a, b, c = edge.origin, edge.next.origin, edge.next.next.origin
+    def process_3triangle(self, he):
+        assert he.constraint
+        assert he.next.constraint
+        assert he.next.next.constraint
+        a, b, c = he.origin, he.next.origin, he.next.next.origin
         # segments
         mid_pt = mid_point3(a, b, c)
         #
@@ -199,6 +244,13 @@ class TriangleVisitor:
         # all nodes will be connected by definition
 
     def skeleton_segments(self):
+        fh = open('/tmp/triangles.wkt', 'a')
+        for t in self.triangles:
+            a, b, c = t.origin, t.next.origin, t.next.next.origin
+            tri = "POLYGON(({} {}, {} {}, {} {}, {} {}))\n".format(
+                a.x, a.y, b.x, b.y, c.x, c.y, a.x, a.y)
+            fh.write(tri)
+        fh.close()
         # create segments using knowledge on internal triangles
         for t in self.triangles:
             # type of triangle (no. of constraints)
@@ -236,9 +288,9 @@ class TriangleVisitor:
         """For nodes that have to be connected we pick the longest connector
         """
         # TODO: alternative: pick connector that has direction closest
-        # to half of the angle which the two constrained edges make, 
+        # to half of the angle which the two constrained hes make, 
         # going over the interior of the polygon
-        # From the node we can get back to the triangulation: node.edge
+        # From the node we can get back to the triangulation: node.he
         # Then rotate around node by taking sibling.next, und so weiter :)
         
         # longest 
@@ -334,146 +386,3 @@ class TriangleVisitor:
                             segment = alternative
                     start, end = segment
                     self.ext_segments.append((start, end, node.label, node.label))
-
-    def list_table_sg(self):
-        print "listing table sg"
-#        from psycopg2 import connect
-#        from connect import auth_params
-#        auth = auth_params()
-#        connection = connect(host='%s' % auth['host'], 
-#                                  port=auth['port'], 
-#                                  database='%s' % auth['database'], 
-#                                  user='%s' % auth['username'], 
-#                                  password='%s' % auth['password'])
-#        cursor = connection.cursor()
-#        
-#        cursor.execute("DROP TABLE IF EXISTS tmp_mesh_sg")
-#        cursor.execute("""
-#CREATE TABLE tmp_mesh_sg
-#(
-#    id int8,
-#    type text
-#) WITH OIDS""")
-#        cursor.execute("""
-#SELECT AddGeometryColumn('tmp_mesh_sg', 'geometry', -1, 'LINESTRING', 2)
-#""")
-#        cursor.execute("DROP TABLE IF EXISTS tmp_mesh_conn;")
-#        cursor.execute("""
-#CREATE TABLE tmp_mesh_conn
-#(
-#    id int8 NOT NULL,
-#    type int
-#) WITH OIDS""")
-#        cursor.execute("""
-#SELECT AddGeometryColumn('tmp_mesh_conn', 'geometry', -1, 'LINESTRING', 2)
-#""")
-#        connection.commit()
-#        cursor.close()
-#        connection.close()
-        
-    def list_segments_pg(self):
-        pass
-#        from psycopg2 import connect
-#        from connect import auth_params
-#        auth = auth_params()
-#        connection = connect(host='%s' % auth['host'], 
-#                                  port=auth['port'], 
-#                                  database='%s' % auth['database'], 
-#                                  user='%s' % auth['username'], 
-#                                  password='%s' % auth['password'])
-#        cursor = connection.cursor()        
-#        for i, pts in enumerate(self.segments):
-#            pt0, pt1, = pts
-#            cursor.execute( "INSERT INTO tmp_mesh_sg (id, type, geometry) VALUES({0}, {1}, geomfromtext('{2}') );".format(
-#            i,
-#            0,
-#            "LINESTRING({0} {1}, {2} {3})".format( pt0.x, pt0.y, pt1.x, pt1.y)
-#            ))
-#        
-#        for i, pts in enumerate(self.ext_segments):
-#            pt0, pt1, lft, rgt, = pts
-#            cursor.execute( "INSERT INTO tmp_mesh_sg (id, type, geometry) VALUES({0}, '{1}', geomfromtext('{2}') );".format(
-#            i,
-#            '{0} lft: {1} rgt: {2}'.format(2,lft, rgt),
-#            "LINESTRING({0} {1}, {2} {3})".format( pt0.x, pt0.y, pt1.x, pt1.y)
-#            ))
-#        
-#        connection.commit()    
-#        cursor.close()
-#        connection.close()
-
-    def list_connectors_pg(self):
-        pass
-#        from psycopg2 import connect
-#        from connect import auth_params
-#        auth = auth_params()
-#        connection = connect(host='%s' % auth['host'], 
-#                                  port=auth['port'], 
-#                                  database='%s' % auth['database'], 
-#                                  user='%s' % auth['username'], 
-#                                  password='%s' % auth['password'])
-#        cursor = connection.cursor()
-#        i = 10000
-#        
-#        for alternatives in self.connectors.itervalues():
-#            for alternative in alternatives:
-#                pt0, pt1, = alternative
-#                command = "INSERT INTO tmp_mesh_conn (id, type, geometry) VALUES({0}, {1}, geomfromtext('{2}') );".format(
-#                i,
-#                1,
-#                "LINESTRING({0} {1}, {2} {3})".format( pt0.x, pt0.y, pt1.x, pt1.y)
-#                )
-#                cursor.execute( command )
-#                i += 1
-#            i += 100
-#        for alternatives in self.bridges.itervalues():
-#            for alternative in alternatives:
-#                pt0, pt1, = alternative
-#                cursor.execute( "INSERT INTO tmp_mesh_conn (id, type, geometry) VALUES({0}, {1}, geomfromtext('{2}') );".format(
-#                i,
-#                2,
-#                "LINESTRING({0} {1}, {2} {3})".format( pt0.x, pt0.y, pt1.x, pt1.y)
-#                )
-#                )
-#                i += 1
-#            i += 100
-#        connection.commit()
-#        cursor.close()
-#        connection.close()
-
-    def list_pg(self):
-        print "listing mesh to postgres"
-#        from psycopg2 import connect
-#        from connect import auth_params
-#        auth = auth_params()
-#        connection = connect(host='%s' % auth['host'], 
-#                                  port=auth['port'], 
-#                                  database='%s' % auth['database'], 
-#                                  user='%s' % auth['username'], 
-#                                  password='%s' % auth['password'])
-#        cursor = connection.cursor()      
-#        cursor.execute("DROP TABLE IF EXISTS tmp_mesh_pl;")
-#        cursor.execute("""
-#CREATE TABLE tmp_mesh_pl
-#(
-#    id int8 UNIQUE NOT NULL,
-#    flag varchar
-#) WITH OIDS;""")
-#        cursor.execute("""
-#SELECT AddGeometryColumn('tmp_mesh_pl', 'geometry', -1, 'POLYGON', 2);
-#""")
-#        print "listing #", len(self.triangles), "triangles"
-#        for i, t in enumerate(self.triangles):
-#            a, b, c, = t, t.next, t.next.next
-#            cursor.execute("""INSERT INTO tmp_mesh_pl (id, flag, geometry) VALUES({0}, {1}, geomfromtext('{2}') );""".format(
-#                            i,
-#                            "{0}".format(a.flag),
-#                            "POLYGON(({0} {1}, {2} {3}, {4} {5}, {6} {7}))".format(                           
-#                            a.origin.x, a.origin.y, 
-#                            b.origin.x, b.origin.y, 
-#                            c.origin.x, c.origin.y, 
-#                            a.origin.x, a.origin.y)
-#                            ))
-#        connection.commit()
-#        cursor.close()
-#        connection.close()

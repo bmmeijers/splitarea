@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
+
 from collections import defaultdict
 from math import atan2, pi
 from math import hypot
 
 from mesher.mesh import Vertex
+from warnings import warn
 from predicates import orient2d
 
 PI2 = 2 * pi
@@ -23,46 +25,12 @@ def mid_point2(pa, pb):
     mid.gid = tuple(L)
     return mid
 
-def mid_point3(pa, pb, pc):
-    A = dist(pb, pc)
-    B = dist(pc, pa)
-    C = dist(pa, pb)
-    # value between 1 and 2
-    #
-    # 1 = dented junction 
-    # 2 = T-junction
-    #
-    factor = 1.
-    a_ = factor
-    smallest = A
-    b_ = 1.
-    c_ = 1.
-    if B < smallest:
-        a_ = 1.
-        b_ = factor
-        smallest = B
-    if C < smallest:
-        a_ = 1.
-        b_ = 1.
-        c_ = factor
-    d_ = a_ + b_ + c_
-#        D = a_*A + b_*B + c_*C
-    x = (a_*pa.x + b_*pb.x + c_*pc.x) / d_
-    y = (a_*pa.y + b_*pb.y + c_*pc.y) / d_
-#    mid = Vertex((pa.x + pb.x + pc.x) / 3.0, 
-#        (pa.y + pb.y + pc.y) / 3.0 )
-    mid = Vertex(x, y)
-    L = [id(pa), id(pb), id(pc)]
-    L.sort()
-    mid.gid = tuple(L)
-    return mid
-
 def dist(v0, v1):
-    dx = v0.x - v1.x
-    dy = v0.y - v1.y
+    dx = v0[0] - v1[0]
+    dy = v0[1] - v1[1]
     return hypot(dx, dy)
 
-class TriangleVisitor:
+class TriangleVisitor(object):
     def __init__(self, mesh):
         self.mesh = mesh
         self.triangles = []
@@ -120,7 +88,9 @@ class TriangleVisitor:
                 UNKNOWN == he.next.next.sibling.flag:
                 stack.append(he.next.next.sibling)
         # interior walk
-        assert start is not None
+        if start is None: 
+            warn("No interior part found for creating skeleton")
+            return
         stack = [start]
         while stack:
             he = stack.pop()
@@ -318,7 +288,7 @@ class TriangleVisitor:
                 a.x, a.y, b.x, b.y, c.x, c.y, a.x, a.y)
             fh.write(tri)
         fh.close()
-        # create segments using knowlhe on internal triangles
+        # create segments using knowledge on internal triangles
         for t in self.triangles:
             # type of triangle (no. of constraints)
             triangle_type = 0
@@ -441,6 +411,7 @@ class TriangleVisitor:
 #                print self.triangle_point[t]
 #        fh.close()
 
+
     def pick_connectors(self):
         """For nodes that have to be connected we pick the longest connector
         """
@@ -467,22 +438,31 @@ class TriangleVisitor:
 #                        longest = d
 #                        segment = (pt0, pt1)
 #                self.segments.append(segment)
+        
         # shortest 
+#        for node in self.connectors:
+#            alternatives = self.connectors[node]
+#            if len(alternatives) == 1:
+#                segment = alternatives[0]
+#                self.segments.append(segment)
+#            else:
+#                pt0, pt1, = alternatives[0]
+#                shortest = dist(pt0, pt1)
+#                segment = (pt0, pt1)
+#                for alternative in alternatives[1:]:
+#                    pt0, pt1, = alternative
+#                    d = dist(pt0, pt1)
+#                    if d < shortest:
+#                        shortest = d
+#                        segment = (pt0, pt1)
+#                self.segments.append(segment)
+                
+        # connect all
         for node in self.connectors:
             alternatives = self.connectors[node]
-            if len(alternatives) == 1:
-                segment = alternatives[0]
-                self.segments.append(segment)
-            else:
-                pt0, pt1, = alternatives[0]
-                shortest = dist(pt0, pt1)
+            for alternative in alternatives:
+                pt0, pt1, = alternative
                 segment = (pt0, pt1)
-                for alternative in alternatives[1:]:
-                    pt0, pt1, = alternative
-                    d = dist(pt0, pt1)
-                    if d < shortest:
-                        shortest = d
-                        segment = (pt0, pt1)
                 self.segments.append(segment)
 
         # special cases --> transfer L/R info into segment graph
