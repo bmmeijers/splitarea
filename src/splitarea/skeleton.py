@@ -2,9 +2,18 @@ from simplegeom.geometry import LineString
 # from mesher.mesh import coincident
 from flagging import angle
 
+def coincident(a, b): #eps = 0.0001):
+    # TODO: make this method epsilon aware
+    dx = a.x - b.x
+    dy = a.y - b.y
+    if abs(dx) == 0. and abs(dy) == 0.:
+        return True
+    else:
+        return False
+
 DEBUG = False
 
-class SkeletonNode:
+class SkeletonNode(object):
 
     def __init__(self, vertex_id, external_id, pt):
         self.id = vertex_id
@@ -14,19 +23,19 @@ class SkeletonNode:
         self.first_edge = None
         self.first_out = None
         self.first_angle = None
-        
+
         self.degree = 0
         self.label = 0 # for visiting
-        
+
     def __str__(self):
         if self.id is not None:
             return "N<%s (%s)>" % (self.id, self.geometry)
         else:
             return "N<-- (%s)>" % (self.geometry)
-    
+
     def remove_edge(self, edge, out):
         """Removes an edge from the skeleton.
-        
+
         This method is mostly used for unwanted-branch pruning. Pruning these
         branches might lead to artifacts being preserved. Therefore this method
         returns True if there are two edges remaining which are incident at 
@@ -44,25 +53,20 @@ class SkeletonNode:
             else:
                 cw_edge.rcw = ccw_edge
                 cw_edge.rcw_out = ccw_out
-            
             if ccw_out:
                 ccw_edge.rccw = cw_edge
                 ccw_edge.rccw_out = cw_out
             else:
                 ccw_edge.lccw = cw_edge
                 ccw_edge.lccw_out = cw_out
-            
             if edge is self.first_edge:
                 self.first_edge = ccw_edge
                 self.first_out = ccw_out
                 self.first_angle = ccw_angle
-            
             if cw_edge.external or ccw_edge.external:
                 return False
-            
             if cw_edge.unmovable or ccw_edge.unmovable:
                 return False
-            
             if cw_edge is not ccw_edge \
                 and self.degree == 2 \
                 and cw_edge.left_face_id != cw_edge.right_face_id \
@@ -78,18 +82,15 @@ class SkeletonNode:
             self.first_angle = None
             assert self.degree == 0
             return False
-            
+
     def add_edge(self, edge, begins):
         if begins:
             assert edge.start_node is self
         else:
             assert edge.end_node is self
-        
         self.degree += 1
-        
         if DEBUG:
             print "adding edge", edge.edge_id, "at", self, "(",self.geometry,")"
-        
         if self.first_edge is None:
             self.first_edge = edge
             self.first_out = begins
@@ -122,14 +123,14 @@ class SkeletonNode:
                 # angle a->b, where a is node (last vertex) and b is 2nd last vertex of line
                 new_angle = angle(edge.geometry[-1], edge.geometry[-2]) 
                 edge.end_angle = new_angle 
-            
+
             # loop to find where this edge should be inserted
             prev_edge, prev_out, prev_angle = self.first_edge, self.first_out, self.first_angle
             next_edge, next_out, next_angle = self.ccw_next_edge(prev_edge, prev_out)
             while True:
                 if next_edge == self.first_edge and self.first_out == next_out:
                     break
-                
+
                 if new_angle > prev_angle and new_angle < next_angle:
                     break
                 prev_edge, prev_out, prev_angle = next_edge, next_out, next_angle
@@ -140,7 +141,7 @@ class SkeletonNode:
 
             # update incident edges their wings, according to found position
             # of new edge
-            
+
             # next_edge
             if next_out:
                 next_edge.rccw = edge # rccw, new
@@ -173,9 +174,9 @@ class SkeletonNode:
                 self.first_edge = edge
                 self.first_out = begins
                 self.first_angle = new_angle
-        
+
         if DEBUG: print " fin adding **", edge
-    
+
     def ccw_next_edge(self, edge, begins):
         # take next counter clockwise edge at this node
         if begins:
@@ -206,25 +207,20 @@ class SkeletonNode:
             next_angle = next_edge.end_angle
         return (next_edge, next_out, next_angle,)
 
-class SkeletonEdge:
+
+class SkeletonEdge(object):
     def __init__(self, 
                  edge_id,
                  start_node, end_node, 
                  left_face_id, right_face_id,
                  geometry, external, unmovable):
-        
         self.edge_id = edge_id
-        
         self.start_node = start_node
         self.end_node = end_node
-        
         self.left_face_id = left_face_id
         self.right_face_id = right_face_id
-        
         self.geometry = geometry
-
         self.external = external
-        
         self.unmovable = unmovable
         # wings
         # (direction of edge pointed at is kept in <wing>_out)
@@ -305,8 +301,8 @@ class SkeletonEdge:
         rccw_out, rccw,
         self.external)
 
-class SkeletonGraph:
-    
+class SkeletonGraph(object):
+
     def __init__(self):
         self.nodes = {}
         self.faces = {}
@@ -314,7 +310,7 @@ class SkeletonGraph:
         self.edges = [] #set()
         self.new_edges = []
         self.universe_id = None
-        
+
     def add_node(self, pt, vertex_id, external_id): 
         assert vertex_id is not None
         if vertex_id not in self.nodes:
@@ -323,46 +319,39 @@ class SkeletonGraph:
         else:
             n = self.nodes[vertex_id]
         return n
-    
+
     def add_segment(self, 
                     geometry,
-
                     # topo structure
                     edge_id = None,
                     start_node_id = None,
                     end_node_id = None,
                     left_face_id = None, 
                     right_face_id = None,
-                    
                     # triangulation
                     start_vertex_id = None,
                     end_vertex_id = None, 
-                    
                     # extra info
                     external = True,
                     start_external = False, # True if start_vertex_id is None
                     end_external = False, # True if end_vertex_id is None
                     unmovable = False):
         EXTERNAL = 1
-
         sn = self.add_node(geometry[0], start_vertex_id, start_node_id)
         if DEBUG: print sn
         if start_external:
             sn.label = EXTERNAL
         en = self.add_node(geometry[-1], end_vertex_id, end_node_id)
-        
         try:
             assert coincident(geometry[0], sn.geometry)
         except:
             print geometry[0], sn.geometry
             raise
-            
         try:
             assert coincident(geometry[-1], en.geometry)
         except:
             print geometry[-1], en.geometry 
             raise
-        
         if DEBUG: print en
         if end_external:
             en.label = EXTERNAL
@@ -373,11 +362,10 @@ class SkeletonGraph:
         if DEBUG: print "edge", edge.edge_id, "", sn, "", en
         sn.add_edge(edge, begins = True)
         en.add_edge(edge, begins = False)
-        
         self.edges.append(edge) #add(edge)
         if external: # thus external edge
             self.ext.add(edge)
-            
+
     def remove_node(self, node):
         """Deleting a node from the structure. The node should not be connected
         any more (i.e. degree == 0).
@@ -422,10 +410,8 @@ class SkeletonGraph:
                     start_external = False,
                     end_external = False)
 
-
     def remove_edge(self, edge):
         """Removing a edge from the Winged Edge structure.
-        
         If node is left with degree = 0 it is also deleted.
         """
         edge.start_node.remove_edge(edge, True) 
@@ -450,21 +436,17 @@ class SkeletonGraph:
         """
         shorten_start = edge.start_node.remove_edge(edge, True)
         shorten_end = edge.end_node.remove_edge(edge, False)
-        
         if shorten_start:
             self.create_shortcut_edge(edge.start_node)
         elif edge.start_node.degree == 0:
             self.remove_node(edge.start_node)
         edge.start_node = None
-            
         if shorten_end:
             self.create_shortcut_edge(edge.end_node)
         elif edge.end_node.degree == 0:
             self.remove_node(edge.end_node)
         edge.end_node = None
-
         self.edges.remove(edge)
-            
 
     def label_edges(self, value):
         """Set ``value'' to all label properties on all Edges"""
@@ -475,7 +457,7 @@ class SkeletonGraph:
         """Set ``value'' to all label properties on all Nodes"""
         for node in self.nodes.itervalues():
             node.label = value
-        
+
     def label_sides(self):
         """ 
         """
@@ -771,46 +753,46 @@ class SkeletonGraph:
             # Prune ('skim') or just remove
             if debug:
                 print "removing", edge
-#            self.remove_edge(edge)
-            self.prune_edge(edge)
+            self.remove_edge(edge)
+#             self.prune_edge(edge)
         del removal
+# 
+#     def create_edge_table(self):
+#         from brep.conn import ConnectionFactory
+#         conn = ConnectionFactory()
+#         cursor = conn.cursor()
+#         
+#         command = """
+# DROP TABLE IF EXISTS tmp_mesh_skel;"""
+#         cursor.execute(command)
+# 
+#         command = """
+# CREATE TABLE tmp_mesh_skel
+# (
+# id int8 NOT NULL,
+# txt varchar,
+# neighbours varchar
+# )  WITH OIDS;"""
+#         cursor.execute(command)
+#         command = """SELECT AddGeometryColumn('tmp_mesh_skel', 'geometry', -1, 'LINESTRING', 2);
+# """
+#         cursor.execute(command)
+#         cursor.close()
+#         conn.commit()
+#         conn.close()
 
-    def create_edge_table(self):
-        from brep.conn import ConnectionFactory
-        conn = ConnectionFactory()
-        cursor = conn.cursor()
-        
-        command = """
-DROP TABLE IF EXISTS tmp_mesh_skel;"""
-        cursor.execute(command)
-
-        command = """
-CREATE TABLE tmp_mesh_skel
-(
-id int8 NOT NULL,
-txt varchar,
-neighbours varchar
-)  WITH OIDS;"""
-        cursor.execute(command)
-        command = """SELECT AddGeometryColumn('tmp_mesh_skel', 'geometry', -1, 'LINESTRING', 2);
-"""
-        cursor.execute(command)
-        cursor.close()
-        conn.commit()
-        conn.close()
-
-    def visualize_edges(self, txt = ""):
-        from brep.conn import ConnectionFactory
-        conn = ConnectionFactory()
-        cursor = conn.cursor()
-        for edge in self.edges:
-            txt = "external? {0} unmovable? {1}".format(edge.external, edge.unmovable)
-            cursor.execute(
-"INSERT INTO tmp_mesh_skel (id, txt, neighbours, geometry) VALUES ({0}, '{1}', '{2} {3} minmaxed', geomfromtext('{4}'));".format(edge.edge_id, txt, min(edge.left_face_id, edge.right_face_id),  max(edge.left_face_id, edge.right_face_id), edge.geometry))
-        cursor.close()
-        conn.commit()
-        conn.close()
-        print "VISUALIZE EDGES, see tmp_mesh_skel"
+#     def visualize_edges(self, txt = ""):
+#         from brep.conn import ConnectionFactory
+#         conn = ConnectionFactory()
+#         cursor = conn.cursor()
+#         for edge in self.edges:
+#             txt = "external? {0} unmovable? {1}".format(edge.external, edge.unmovable)
+#             cursor.execute(
+# "INSERT INTO tmp_mesh_skel (id, txt, neighbours, geometry) VALUES ({0}, '{1}', '{2} {3} minmaxed', geomfromtext('{4}'));".format(edge.edge_id, txt, min(edge.left_face_id, edge.right_face_id),  max(edge.left_face_id, edge.right_face_id), edge.geometry))
+#         cursor.close()
+#         conn.commit()
+#         conn.close()
+#         print "VISUALIZE EDGES, see tmp_mesh_skel"
         
     def visualize_nodes(self):
         fh = open('/tmp/nodes.wkt', 'w')
@@ -841,36 +823,36 @@ neighbours varchar
 #        conn.close()
 #        print "VISUALIZE NODES, see tmp_mesh_pt2"
 
-    def list_segments_pg(self):
-        from psycopg2 import connect
-        from connect import auth_params
-        auth = auth_params()
-        connection = connect(host='%s' % auth['host'], 
-                                  port=auth['port'], 
-                                  database='%s' % auth['database'], 
-                                  user='%s' % auth['username'], 
-                                  password='%s' % auth['password'])
-        cursor = connection.cursor()
-        cursor.execute("""
-DROP TABLE IF EXISTS tmp_mesh_segments;""")
-        cursor.execute("""
-CREATE TABLE tmp_mesh_segments
-(
-    id int8 UNIQUE NOT NULL,
-    lf varchar,
-    rf varchar
-)  WITH OIDS;
-""")
-        cursor.execute("""
-SELECT AddGeometryColumn('tmp_mesh_segments', 'geometry', -1, 'LINESTRING', 2);
-""")
-        for edge in self.edges:
-            cursor.execute("""INSERT INTO tmp_mesh_segments (id,  lf, rf, geometry) VALUES
-({0}, '{1}', '{2}', geomfromtext('{3}'));""".format(edge.edge_id, edge.left_face_id, edge.right_face_id, edge.geometry)
-        )
-        connection.commit()
-        cursor.close()
-        connection.close()
+#     def list_segments_pg(self):
+#         from psycopg2 import connect
+#         from connect import auth_params
+#         auth = auth_params()
+#         connection = connect(host='%s' % auth['host'], 
+#                                   port=auth['port'], 
+#                                   database='%s' % auth['database'], 
+#                                   user='%s' % auth['username'], 
+#                                   password='%s' % auth['password'])
+#         cursor = connection.cursor()
+#         cursor.execute("""
+# DROP TABLE IF EXISTS tmp_mesh_segments;""")
+#         cursor.execute("""
+# CREATE TABLE tmp_mesh_segments
+# (
+#     id int8 UNIQUE NOT NULL,
+#     lf varchar,
+#     rf varchar
+# )  WITH OIDS;
+# """)
+#         cursor.execute("""
+# SELECT AddGeometryColumn('tmp_mesh_segments', 'geometry', -1, 'LINESTRING', 2);
+# """)
+#         for edge in self.edges:
+#             cursor.execute("""INSERT INTO tmp_mesh_segments (id,  lf, rf, geometry) VALUES
+# ({0}, '{1}', '{2}', geomfromtext('{3}'));""".format(edge.edge_id, edge.left_face_id, edge.right_face_id, edge.geometry)
+#         )
+#         connection.commit()
+#         cursor.close()
+#         connection.close()
 
 
     def find_new_edges(self, new_node_id = 0, new_edge_id = 0):
@@ -887,10 +869,16 @@ SELECT AddGeometryColumn('tmp_mesh_segments', 'geometry', -1, 'LINESTRING', 2);
         self.label_edges(INIT)
         # label nodes that do not have an id yet
         for node in self.nodes.itervalues():
-            # if node.degree != 2 and 
-#            if node.id is None:
-            self.new_node_id += 1
-            node.id = self.new_node_id
+            print node.id, node.external_id
+            # FIXME: node id generation !!!
+            if node.external_id is None:
+                self.new_node_id += 1
+                node.id = self.new_node_id
+                #node.id = node.external_id
+#             # if node.degree != 2 and 
+# #            if node.id is None:
+#             self.new_node_id += 1
+#             node.id = self.new_node_id
 
         for edge in self.edges:
             if edge.label == VISITED:
@@ -903,15 +891,15 @@ SELECT AddGeometryColumn('tmp_mesh_segments', 'geometry', -1, 'LINESTRING', 2);
                 if DEBUG: group_by.append(edge.edge_id)
                 sn = edge.start_node
                 en = edge.end_node
-                try:
-                    assert type(sn.id) is type(1)
-                except AssertionError:
-                    raise ValueError("Node {}, id has no int type".format(sn))
-                
-                try:
-                    assert type(en.id) is type(1)
-                except AssertionError:
-                    raise ValueError("Node {}, id has no int type".format(sn))
+#                 try:
+#                     assert type(sn.id) is type(1)
+#                 except AssertionError:
+#                     raise ValueError("Node {}, id has no int type".format(sn))
+#                 
+#                 try:
+#                     assert type(en.id) is type(1)
+#                 except AssertionError:
+#                     raise ValueError("Node {}, id has no int type".format(sn))
                 lf_id = edge.left_face_id
                 rf_id = edge.right_face_id
                 check = (min(lf_id,rf_id), max(lf_id,rf_id))
@@ -928,14 +916,12 @@ SELECT AddGeometryColumn('tmp_mesh_segments', 'geometry', -1, 'LINESTRING', 2);
                     if sn.degree != 2:
                         if DEBUG: print "(dir st) break: node.degree != 2 @e", edge.edge_id, "n", sn.id
                         break
-                    
 #                    if out:
 #                        edge = edge.lcw
 #                        out = edge.lcw_out
 #                    else:
 #                        edge = edge.rcw
 #                        out = edge.rcw_out
-                    
                     next_edge, out, angle = sn.ccw_next_edge(edge, out)
                     if edge.external and next_edge.external:
                         break
@@ -1073,23 +1059,23 @@ SELECT AddGeometryColumn('tmp_mesh_segments', 'geometry', -1, 'LINESTRING', 2);
 #            connection.close()
         return
 
-        # from longest edges possible starting from a node where degree != 2
-        for node in self.nodes.itervalues():
-            if node.degree != 2: # node.degree != 2 or 
-                while True:
-                    start_edge, start_out, _, = self.unvisited_edge(node)
-                    if start_edge.label == VISITED:
-                        break
-                    else:
-                        self.new_node_id += 1
-                        self.make_edge_walk(start_edge, start_out, True, self.new_node_id)
-        # walk over remaining edges
-        for edge in self.edges:
-            if edge.label != VISITED:
-                if DEBUG: print "walking over rem. edges"
-                start_edge, start_out, _, = self.unvisited_edge(edge.start_node)
-                self.new_node_id += 1
-                self.make_edge_walk(start_edge, start_out, False, self.new_node_id)
+#         # from longest edges possible starting from a node where degree != 2
+#         for node in self.nodes.itervalues():
+#             if node.degree != 2: # node.degree != 2 or 
+#                 while True:
+#                     start_edge, start_out, _, = self.unvisited_edge(node)
+#                     if start_edge.label == VISITED:
+#                         break
+#                     else:
+#                         self.new_node_id += 1
+#                         self.make_edge_walk(start_edge, start_out, True, self.new_node_id)
+#         # walk over remaining edges
+#         for edge in self.edges:
+#             if edge.label != VISITED:
+#                 if DEBUG: print "walking over remaining edges"
+#                 start_edge, start_out, _, = self.unvisited_edge(edge.start_node)
+#                 self.new_node_id += 1
+#                 self.make_edge_walk(start_edge, start_out, False, self.new_node_id)
         # 
 #        if DEBUG:
 #            from psycopg2 import connect
@@ -1127,7 +1113,7 @@ SELECT AddGeometryColumn('tmp_mesh_segments', 'geometry', -1, 'LINESTRING', 2);
 #            connection.commit()
 #            cursor.close()
 #            connection.close()
-    
+
     def unvisited_edge(self, node):
         """Returns edge not yet visited at given ``node''
         """

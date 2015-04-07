@@ -7,7 +7,7 @@ from collections import defaultdict, namedtuple
 from simplegeom.geometry import LineString, Envelope, Point
 from simplegeom.wkt import loads
     
-from splitarea.flagging import EdgeEdgeHarvester#, MidpointHarvester
+from splitarea.flagging import EdgeEdgeHarvester, VertexInfo # MidpointHarvester, VertexInfo
 from splitarea.skeleton import SkeletonGraph
 
 from tri import triangulate, ToPointsAndSegments # polygon_as_points_and_segments
@@ -17,11 +17,6 @@ from pprint import pprint
 import sys
 
 def test():
-    
-#    from brep.io import geom_from_text
-
-    VertexInfo = namedtuple("VertexInfo", "type face_ids vertex_id")
-
     wkt = """
     POLYGON ((0 0, 9 1, 10 10, 1 9, 0 0))
     """
@@ -120,13 +115,10 @@ def test():
 
     visitor = EdgeEdgeHarvester([t for t in InteriorTriangleIterator(dt)])
     visitor.skeleton_segments()
-    
-    
     with open("/tmp/skel0.wkt", "w") as fh:
         fh.write("wkt\n")
         for seg in visitor.segments:
             fh.write("LINESTRING({0[0].x} {0[0].y}, {0[1].x} {0[1].y})\n".format(seg))
-
     visitor.pick_connectors()
 
 
@@ -174,22 +166,24 @@ def test():
     outside_edges = [
         #eid, geom, sn, sn_ext, svtxid, en, en_ext, evtxid, lf, rf
         (4000,
-         LineString([(0,20), (1,9)]),
-         5002, True, (0,20),
-         1002, False, (1,9),
-
-         "A",
-         "B"
-         ),
+         LineString([(1,9), (0,20), (20,20), (20,1), (9,1)],),
+         1002, False, 1002,
+         1001, False, 1001,
+         "C", "B"
+        ),
         (4001,
-         LineString([(20,1), (9,1)]),
-
-         5001, True, (20,1),
-         1001, False, (9,1),
-
-         "B",
-         "A"
+         LineString([(0,9), (1,9)],),
+         5002, False, 5002,
+         1002, False, 1002,
+         "C", "D"
          ),
+         (4002,
+         LineString([(9,0), (9,1)],),
+         5001, False, 5001,
+         1001, False, 1001,
+         "D", "C"
+         ),
+                    
     ] 
     
 #     outside_edges = []
@@ -240,13 +234,21 @@ def test():
 #     """
 #     # then add all segments which are unlabeled
     for i, segment in enumerate(visitor.segments):
-        v0, v1, = segment
+        v0, v1, = segment       
         ln = LineString()
         ln.append(Point(v0.x, v0.y))
         ln.append(Point(v1.x, v1.y))
+        start_vertex_id = v0.info.vertex_id
+        if start_vertex_id is None:
+            start_vertex_id = (id(v0), ) # note, not an int but tuple to prevent duplicate with external ids
+        end_vertex_id = v1.info.vertex_id
+        if end_vertex_id is None:
+            end_vertex_id = (id(v1), ) # note, not an int but tuple to prevent duplicate with external ids
+        print start_vertex_id
+        print end_vertex_id
         skeleton.add_segment(ln, 
-                             start_vertex_id = (v0.x, v0.y),
-                             end_vertex_id = (v1.x, v1.y),
+                             start_vertex_id = start_vertex_id,
+                             end_vertex_id = end_vertex_id,
                              external = False, 
                              edge_id = i + len(visitor.ext_segments))
 
@@ -258,7 +260,7 @@ def test():
     skeleton.visualize_nodes()
     skeleton.label_sides()
     skeleton.prune_branches()
-    skeleton.find_new_edges()
+    skeleton.find_new_edges(new_edge_id=90000, new_node_id=80000)
 
     with open("/tmp/edges_new.wkt", "w") as fh:
         fh.write("eid;sn;en;lf;rf;length;geom\n")
