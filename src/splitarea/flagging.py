@@ -30,7 +30,7 @@ def mid_point2(pa, pb):
     mid.info = VertexInfo(0, None, tuple(L))
     return mid
 
-def mid_point3(pa, pb, pc, factor = 1.):
+def mid_point3(pa, pb, pc, factor = 1.5):
     A = dist(pb, pc)
     B = dist(pc, pa)
     C = dist(pa, pb)
@@ -77,26 +77,30 @@ class EdgeEdgeHarvester(object):
         self.bridges = defaultdict(list)
 
     def add_segment(self, v0, v1):
-        print "add_segment", v0, v1
-        if v0.info.type in (2, 3):
-            self.bridges[v0].append( (v0, v1) )
+        #print "add_segment", v0, v1
+        if v0.info is not None:
+            if v0.info.type in (2, 3):
+                self.bridges[v0].append( (v0, v1) )
+            else:
+                #print v0.info.type
+                assert v0.info.type in (0, 1,)
+                self.segments.append( (v0, v1) )
         else:
-            print v0.info.type
-            assert v0.info.type in (0, 1,)
             self.segments.append( (v0, v1) )
-
     def add_connector(self, start, end):
-        print "add_connector", start, end
+        #print "add_connector", start, end
 
 #         if start.info is not None:
-        if start.info.type in (0, 1):
-            print "add_connector", start, end
-            self.connectors[start].append( (start, end) )
-        elif start.info.type in (2, 3):
-            self.bridges[start].append( (start, end) )
+        if start.info is not None:
+            if start.info.type in (0, 1):
+                #print "add_connector", start, end
+                self.connectors[start].append( (start, end) )
+            elif start.info.type in (2, 3):
+                self.bridges[start].append( (start, end) )
+            else:
+                assert False, "should not arrive here"
         else:
-            assert False, "should not arrive here"
-
+            self.connectors[start].append( (start, end) )
 #         if start.flag == 1:
 #             self.connectors[start].append( (start, end) )
 #         elif start.flag == 2:
@@ -206,11 +210,11 @@ class EdgeEdgeHarvester(object):
 #                 triangle_type += 4
             # 0 - triangle
             if triangle_type == 0:
-                print '0 triangle'
+                #print '0 triangle'
                 self.process_0triangle(t)
             # 1 - triangle (3 rotations)
             elif triangle_type in (1, 2, 4):
-                print "1 triangle"
+                #print "1 triangle"
                 if triangle_type == 1:
                     self.process_1triangle(t, 0)
                 elif triangle_type == 2:
@@ -219,7 +223,7 @@ class EdgeEdgeHarvester(object):
                     self.process_1triangle(t, 2)
             # 2 - triangle (3 rotations)
             elif triangle_type in (3, 5, 6):
-                print "2 triangle"
+                #print "2 triangle"
                 if triangle_type == 3: # 1 + 2
                     self.process_2triangle(t, 0)
                 elif triangle_type == 6: # 2 + 4
@@ -228,7 +232,7 @@ class EdgeEdgeHarvester(object):
                     self.process_2triangle(t, 2)
             # 3 - triangle
             elif triangle_type == 7:
-                print "3 triangle"
+                #print "3 triangle"
                 self.process_3triangle(t)
 
     def pick_connectors(self):
@@ -296,10 +300,7 @@ class EdgeEdgeHarvester(object):
                     rgt = start.info.face_ids[prv][0]
                     lft = start.info.face_ids[nxt][0]
                     tmp.append((start, end, lft, rgt))
-                print "TEMP", tmp
-                # now check whether multiple bridges are created between two
-                # angles (e.g. test case #010) --> split in groups
-                
+                #print "TEMP", tmp
                 # this can also be accomplished with itertools groupby
 #                things = sorted(tmp, key=lambda x: (x[2], x[3]) )
 #                from itertools import groupby
@@ -336,253 +337,267 @@ class EdgeEdgeHarvester(object):
 
 
 
-# class MidpointHarvester(object):
-#     def __init__(self, triangles):
-#         raise NotImplementedError("Not yet fully implemented and correct")
-#         self.triangles = triangles
-#         self.segments = []
-#         self.ext_segments = []
-#         self.connectors = defaultdict(list)
-#         self.bridges = defaultdict(list)
-#         self.triangle_point = {}
-# 
-#     def add_segment(self, v0, v1):
-#         print "add_segment", v0, v1
-# #         if v0.info is not None:
-# #             if v0.info.type:
-# #         if v0.flag == 3:
-# #             self.bridges[v0].append( (v0, v1) )
-# #         elif v0.flag == 2:
-# #             self.bridges[v0].append( (v0, v1) )
-# #         else:
-# #             assert v0.flag in (0, 1,)
-# #             self.segments.append( (v0, v1) )
-#         self.segments.append( (v0, v1) )
-# 
-# 
-#     def add_connector(self, start, end):
-# 
-#         if start.info is not None:
-#             if start.info.type == 1:
-#                 print "add_connector", start, end
-#                 self.connectors[start].append( (start, end) )
-# 
-# #         if start.flag == 1:
-# #             self.connectors[start].append( (start, end) )
-# #         elif start.flag == 2:
-# #         ## TODO: different for weighted version:
-# # #        if start.flag == 2 and len(start.weights) > 0 and min(start.weights) != 0:
-# #             self.bridges[start].append( (start, end) )
-# #         elif start.flag == 3:
-# #             self.bridges[start].append( (start, end) )
-# 
-#     def process_0triangle(self, t):
-#         assert not t.constrained[0]
-#         assert not t.constrained[1]
-#         assert not t.constrained[2]
-#         a, b, c = t.vertices # t.origin, t.next.origin, t.next.next.origin
+class MidpointHarvester(object):
+    def __init__(self, triangles):
+        self.triangles = triangles
+        self.segments = []
+        self.ext_segments = []
+        self.connectors = defaultdict(list)
+        self.bridges = defaultdict(list)
+        self.triangle_point = {}
+ 
+    def add_segment(self, v0, v1):
+        #print "add_segment", v0, v1
+#         if v0.info is not None:
+#             if v0.info.type:
+#         if v0.flag == 3:
+#             self.bridges[v0].append( (v0, v1) )
+#         elif v0.flag == 2:
+#             self.bridges[v0].append( (v0, v1) )
+#         else:
+#             assert v0.flag in (0, 1,)
+#             self.segments.append( (v0, v1) )
+        self.segments.append( (v0, v1) )
+ 
+ 
+    def add_connector(self, start, end):
+ 
+        if start.info is not None:
+            if start.info.type == 1:
+                #print "add_connector", start, end
+                self.connectors[start].append( (start, end) )
+ 
+#         if start.flag == 1:
+#             self.connectors[start].append( (start, end) )
+#         elif start.flag == 2:
+#         ## TODO: different for weighted version:
+# #        if start.flag == 2 and len(start.weights) > 0 and min(start.weights) != 0:
+#             self.bridges[start].append( (start, end) )
+#         elif start.flag == 3:
+#             self.bridges[start].append( (start, end) )
+ 
+    def process_0triangle(self, t):
+        assert not t.constrained[0]
+        assert not t.constrained[1]
+        assert not t.constrained[2]
+        a, b, c = t.vertices # t.origin, t.next.origin, t.next.next.origin
 #         # 1 = dented junction 
 #         # 2 = T-junction
 #         #
-#         factor = 2.
-#         A = dist(b, c)
-#         B = dist(c, a)
-#         C = dist(a, b)
-#         a_ = factor
-#         smallest = A
-#         b_ = 1.
-#         c_ = 1.
-#         if B < smallest:
-#             a_ = 1.
-#             b_ = factor
-#             smallest = B
-#         if C < smallest:
-#             a_ = 1.
-#             b_ = 1.
-#             c_ = factor
-#         d_ = a_ + b_ + c_
-# #        D = a_*A + b_*B + c_*C
-#         x = (a_*a.x + b_*b.x + c_*c.x) / d_
-#         y = (a_*a.y + b_*b.y + c_*c.y) / d_
-# #        fh = open('/tmp/centres.wkt', 'a')
-# #        print >> fh, "POINT({} {});0".format(x, y)
-# #        fh.close()
-#         v = Vertex(x, y)
-#         self.triangle_point[t] = v 
-# 
-#     def process_1triangle(self, t, side):
-#         assert t.constrained[side]
-#         assert not t.constrained[(side+1)%3]
-#         assert not t.constrained[(side+2)%3]
-# #         assert he.constraint
-# #         assert not he.next.constraint
-# #         assert not he.next.next.constraint
-#         a, b, c = t.vertices[(side+1)%3], t.vertices[(side+2)%3], t.vertices[(side+3)%3] # he.origin, he.next.origin, he.next.next.origin
-#         #fh = open('/tmp/centres.wkt', 'a')
-#         x = (a.x + b.x + c.x * 2.) / 4.
-#         y = (a.y + b.y + c.y * 2.) / 4.
-#         # Get length of the base of the triangle and its area, this gets the 
-#         # height of the triangle. 
-#         # This height is an approximation of the river width at this point
-# #         base = dist(a, b)
-# #         if base:
-# #             height = abs(orient2d(a, b, c)) / base
-# #         else:
-# #             # prevent div by zero
-# #             height = 0.
-#         #print >> fh, "POINT({} {});{}".format(x, y, height)
-#         #fh.close()
-#         v = Vertex(x, y) #, {'width': round(height * 2.) * .5})
-#         self.triangle_point[t] = v 
-# 
-#     def process_2triangle(self, t, side):
-#         assert t.constrained[side]
-#         assert t.constrained[(side+1)%3]
-#         assert not t.constrained[(side+2)%3]
-#         a, b, c = t.vertices[(side+1)%3], t.vertices[(side+2)%3], t.vertices[(side+3)%3] # he.origin, he.next.origin, he.next.next.origin
-#         A = dist(b, c)
-#         B = dist(c, a)
-#         C = dist(a, b)
-# #        a_ = 2
-# #        smallest = A
-# #        b_ = 1
-# #        c_ = 1
-# #        if B < smallest:
-# #            a_ = 1
-# #            b_ = 2
-# #            smallest = B
-# #        if C < smallest:
-# #            a_ = 1
-# #            b_ = 1
-# #            c_ = 2
-#         D = A + B + C
-# #        D = a_*A + b_*B + c_*C
-#         x = (A/D*a.x + B/D*b.x + C/D*c.x)
-#         y = (A/D*a.y + B/D*b.y + C/D*c.y)
-#         v = Vertex(x, y)
-#         self.triangle_point[t] = v 
-# 
-#     def process_3triangle(self, t):
-#         assert t.constrained[0]
-#         assert t.constrained[1]
-#         assert t.constrained[2]
-#         # raise NotImplementedError("Rare situation")
-# 
-#     def skeleton_segments(self):
-#         # generate center points (the dots)
-#         self.dots()
-#         # connect the dots generated
-#         self.connect_dots()
-# 
-#     def dots(self):
-#         # create segments using knowledge on internal triangles
-#         tp = [1, 2, 4]
-#         for t in self.triangles:
-#             # type of triangle (no. of constraints)
-#             triangle_type = 0
-#             for i, c in enumerate(t.constrained):
-#                 if c:
-#                     triangle_type += tp[i]
-# #             if t.constraint:
-# #                 triangle_type += 1
-# #             if t.next.constraint:
-# #                 triangle_type += 2
-# #             if t.next.next.constraint:
-# #                 triangle_type += 4
-#             # 0 - triangle
-#             if triangle_type == 0:
-#                 print '0 triangle'
-#                 self.process_0triangle(t)
-#             # 1 - triangle (3 rotations)
-#             elif triangle_type in (1, 2, 4):
-#                 print "1 triangle"
-#                 if triangle_type == 1:
-#                     self.process_1triangle(t, 0)
-#                 elif triangle_type == 2:
-#                     self.process_1triangle(t, 1)
-#                 elif triangle_type == 4:
-#                     self.process_1triangle(t, 2)
-#             # 2 - triangle (3 rotations)
-#             elif triangle_type in (3, 5, 6):
-#                 print "2 triangle"
-#                 if triangle_type == 3: # 1 + 2
-#                     self.process_2triangle(t, 0)
-#                 elif triangle_type == 6: # 2 + 4
-#                     self.process_2triangle(t, 1)
-#                 elif triangle_type == 5: # 4 + 1
-#                     self.process_2triangle(t, 2)
-#             # 3 - triangle
-#             elif triangle_type == 7:
-#                 print "3 triangle"
-#                 pass
-#                 # raise NotImplementedError("not there yet")
-# 
-#     def connect_dots(self):
-#         def connect(a, b):
-#             """ connects 2 neighbouring dots """
-#             try:
-#                 pa = self.triangle_point[a]
-#                 pb = self.triangle_point[b]
-#                 if id(pa) < id(pb):
-#     #                print >> fh, TPL.format(pa, pb)
-#                     self.add_segment(pa, pb)
-#             except KeyError:
-#                 print "problem finding triangle"
-#                 pass
-# 
-#         # create segments using knowledge on internal triangles
-#         tp = [1, 2, 4]
-#         for t in self.triangles:
-#             # type of triangle (no. of constraints)
-#             triangle_type = 0
-#             for i, c in enumerate(t.constrained):
-#                 if c:
-#                     triangle_type += tp[i]
-#             if triangle_type == 0:
-#                 connect(t, t.neighbours[0])
-#                 connect(t, t.neighbours[1])
-#                 connect(t, t.neighbours[2])
-#             # 1 - triangle (3 rotations)
-#             elif triangle_type in (1, 2, 4):
-#                 if triangle_type == 1:
-#                     connect(t, t.neighbours[1])
-#                     connect(t, t.neighbours[2])
-# #                     generate(t, t.next.sibling)
-# #                     generate(t, t.next.next.sibling)
-#                 elif triangle_type == 2:
-#                     connect(t, t.neighbours[0])
-#                     connect(t, t.neighbours[2])
-# #                     generate(t, t.sibling)
-# #                     generate(t, t.next.next.sibling)
-#                 elif triangle_type == 4:
-#                     connect(t, t.neighbours[0])
-#                     connect(t, t.neighbours[1])
-# #                     generate(t, t.sibling)
-# #                     generate(t, t.next.sibling)
-#             # 2 - triangle (3 rotations)
-#             elif triangle_type in (3, 5, 6):
-#                 if triangle_type == 3:
-#                     connect(t, t.neighbours[2])
-#                     self.add_segment(self.triangle_point[t], t.vertices[2])
-# #                    print >> fh, TPL.format(self.triangle_point[t], t.next.origin)
-# #                     self.add_segment(self.triangle_point[t], t.next.origin)
-# #                     generate(t, t.next.next.sibling)
-#                 elif triangle_type == 5:
-#                     connect(t, t.neighbours[1])
-#                     self.add_segment(self.triangle_point[t], t.vertices[1])
-# #                    print >> fh, TPL.format(self.triangle_point[t], t.origin)
-# #                     self.add_segment(self.triangle_point[t], t.origin)
-# #                     generate(t, t.next.sibling)
-#                 elif triangle_type == 6:
-#                     connect(t, t.neighbours[0])
-#                     self.add_segment(self.triangle_point[t], t.vertices[0])
-# #                    print >> fh, TPL.format(self.triangle_point[t], t.next.next.origin)
-# #                     self.add_segment(self.triangle_point[t], t.next.next.origin)
-# #                     generate(t, t.sibling)
-#             # 3 - triangle
-#             elif triangle_type == 7:
-#                 print "3 triangle"
-#                 #raise NotImplementedError("not there yet")
+        factor = 1.8
+        A = dist(b, c)
+        B = dist(c, a)
+        C = dist(a, b)
+        a_ = factor
+        smallest = A
+        b_ = 1.
+        c_ = 1.
+        if B < smallest:
+            a_ = 1.
+            b_ = factor
+            smallest = B
+        if C < smallest:
+            a_ = 1.
+            b_ = 1.
+            c_ = factor
+        d_ = a_ + b_ + c_
+#        D = a_*A + b_*B + c_*C
+        x = (a_*a.x + b_*b.x + c_*c.x) / d_
+        y = (a_*a.y + b_*b.y + c_*c.y) / d_
+#        fh = open('/tmp/centres.wkt', 'a')
+#        print >> fh, "POINT({} {});0".format(x, y)
+#        fh.close()
+        v = Vertex(x, y)
+        self.triangle_point[t] = v
+
+#        center of circumscribed circle... goes horribly wrong in certain cases!
+#         p0, p1, p2, = t.vertices
+#         ax, ay, bx, by, cx, cy, = p0.x, p0.y, p1.x, p1.y, p2.x, p2.y
+#         a2 = pow(ax, 2) + pow(ay, 2)
+#         b2 = pow(bx, 2) + pow(by, 2)
+#         c2 = pow(cx, 2) + pow(cy, 2)
+#         UX = (a2 * (by - cy) + b2 * (cy - ay) + c2 * (ay - by))
+#         UY = (a2 * (cx - bx) + b2 * (ax - cx) + c2 * (bx - ax))
+#         D = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by))
+#         ux = UX / D
+#         uy = UY / D
+#         v = Vertex(ux, uy)
+#         self.triangle_point[t] = v
+
+ 
+    def process_1triangle(self, t, side):
+        assert t.constrained[side]
+        assert not t.constrained[(side+1)%3]
+        assert not t.constrained[(side+2)%3]
+#         assert he.constraint
+#         assert not he.next.constraint
+#         assert not he.next.next.constraint
+        a, b, c = t.vertices[(side+1)%3], t.vertices[(side+2)%3], t.vertices[(side+3)%3] # he.origin, he.next.origin, he.next.next.origin
+        #fh = open('/tmp/centres.wkt', 'a')
+        x = (a.x + b.x + c.x * 2.) / 4.
+        y = (a.y + b.y + c.y * 2.) / 4.
+        # Get length of the base of the triangle and its area, this gets the 
+        # height of the triangle. 
+        # This height is an approximation of the river width at this point
+#         base = dist(a, b)
+#         if base:
+#             height = abs(orient2d(a, b, c)) / base
+#         else:
+#             # prevent div by zero
+#             height = 0.
+        #print >> fh, "POINT({} {});{}".format(x, y, height)
+        #fh.close()
+        v = Vertex(x, y) #, {'width': round(height * 2.) * .5})
+        self.triangle_point[t] = v 
+ 
+    def process_2triangle(self, t, side):
+        assert t.constrained[side]
+        assert t.constrained[(side+1)%3]
+        assert not t.constrained[(side+2)%3]
+        a, b, c = t.vertices[(side+1)%3], t.vertices[(side+2)%3], t.vertices[(side+3)%3] # he.origin, he.next.origin, he.next.next.origin
+        A = dist(b, c)
+        B = dist(c, a)
+        C = dist(a, b)
+#        a_ = 2
+#        smallest = A
+#        b_ = 1
+#        c_ = 1
+#        if B < smallest:
+#            a_ = 1
+#            b_ = 2
+#            smallest = B
+#        if C < smallest:
+#            a_ = 1
+#            b_ = 1
+#            c_ = 2
+        D = A + B + C
+#        D = a_*A + b_*B + c_*C
+        x = (A/D*a.x + B/D*b.x + C/D*c.x)
+        y = (A/D*a.y + B/D*b.y + C/D*c.y)
+        v = Vertex(x, y)
+        self.triangle_point[t] = v 
+ 
+    def process_3triangle(self, t):
+        assert t.constrained[0]
+        assert t.constrained[1]
+        assert t.constrained[2]
+        # raise NotImplementedError("Rare situation")
+ 
+    def skeleton_segments(self):
+        # generate center points (the dots)
+        self.dots()
+        # connect the dots generated
+        self.connect_dots()
+ 
+    def dots(self):
+        # create segments using knowledge on internal triangles
+        tp = [1, 2, 4]
+        for t in self.triangles:
+            # type of triangle (no. of constraints)
+            triangle_type = 0
+            for i, c in enumerate(t.constrained):
+                if c:
+                    triangle_type += tp[i]
+#             if t.constraint:
+#                 triangle_type += 1
+#             if t.next.constraint:
+#                 triangle_type += 2
+#             if t.next.next.constraint:
+#                 triangle_type += 4
+            # 0 - triangle
+            if triangle_type == 0:
+                #print '0 triangle'
+                self.process_0triangle(t)
+            # 1 - triangle (3 rotations)
+            elif triangle_type in (1, 2, 4):
+                #print "1 triangle"
+                if triangle_type == 1:
+                    self.process_1triangle(t, 0)
+                elif triangle_type == 2:
+                    self.process_1triangle(t, 1)
+                elif triangle_type == 4:
+                    self.process_1triangle(t, 2)
+            # 2 - triangle (3 rotations)
+            elif triangle_type in (3, 5, 6):
+                #print "2 triangle"
+                if triangle_type == 3: # 1 + 2
+                    self.process_2triangle(t, 0)
+                elif triangle_type == 6: # 2 + 4
+                    self.process_2triangle(t, 1)
+                elif triangle_type == 5: # 4 + 1
+                    self.process_2triangle(t, 2)
+            # 3 - triangle
+            elif triangle_type == 7:
+                #print "3 triangle"
+                pass
+                # raise NotImplementedError("not there yet")
+ 
+    def connect_dots(self):
+        def connect(a, b):
+            """ connects 2 neighbouring dots """
+            try:
+                pa = self.triangle_point[a]
+                pb = self.triangle_point[b]
+                if id(pa) < id(pb):
+    #                print >> fh, TPL.format(pa, pb)
+                    self.add_segment(pa, pb)
+            except KeyError:
+                print "problem finding triangle"
+                pass
+ 
+        # create segments using knowledge on internal triangles
+        tp = [1, 2, 4]
+        for t in self.triangles:
+            # type of triangle (no. of constraints)
+            triangle_type = 0
+            for i, c in enumerate(t.constrained):
+                if c:
+                    triangle_type += tp[i]
+            if triangle_type == 0:
+                connect(t, t.neighbours[0])
+                connect(t, t.neighbours[1])
+                connect(t, t.neighbours[2])
+            # 1 - triangle (3 rotations)
+            elif triangle_type in (1, 2, 4):
+                if triangle_type == 1:
+                    connect(t, t.neighbours[1])
+                    connect(t, t.neighbours[2])
+#                     generate(t, t.next.sibling)
+#                     generate(t, t.next.next.sibling)
+                elif triangle_type == 2:
+                    connect(t, t.neighbours[0])
+                    connect(t, t.neighbours[2])
+#                     generate(t, t.sibling)
+#                     generate(t, t.next.next.sibling)
+                elif triangle_type == 4:
+                    connect(t, t.neighbours[0])
+                    connect(t, t.neighbours[1])
+#                     generate(t, t.sibling)
+#                     generate(t, t.next.sibling)
+            # 2 - triangle (3 rotations)
+            elif triangle_type in (3, 5, 6):
+                if triangle_type == 3:
+                    connect(t, t.neighbours[2])
+                    self.add_segment(self.triangle_point[t], t.vertices[2])
+#                    print >> fh, TPL.format(self.triangle_point[t], t.next.origin)
+#                     self.add_segment(self.triangle_point[t], t.next.origin)
+#                     generate(t, t.next.next.sibling)
+                elif triangle_type == 5:
+                    connect(t, t.neighbours[1])
+                    self.add_segment(self.triangle_point[t], t.vertices[1])
+#                    print >> fh, TPL.format(self.triangle_point[t], t.origin)
+#                     self.add_segment(self.triangle_point[t], t.origin)
+#                     generate(t, t.next.sibling)
+                elif triangle_type == 6:
+                    connect(t, t.neighbours[0])
+                    self.add_segment(self.triangle_point[t], t.vertices[0])
+#                    print >> fh, TPL.format(self.triangle_point[t], t.next.next.origin)
+#                     self.add_segment(self.triangle_point[t], t.next.next.origin)
+#                     generate(t, t.sibling)
+            # 3 - triangle
+            elif triangle_type == 7:
+                print "3 triangle"
+                #raise NotImplementedError("not there yet")
 
 class ConnectorPicker(object):
     def pick_connectors(self):
@@ -667,9 +682,7 @@ class ConnectorPicker(object):
                 for lft, rgt in split:
                     start, end = split[(lft,rgt)][0]
                     self.ext_segments.append((start, end, lft, rgt))
-                
             else:
-                
                 assert node.flag == 2
                 if len(alternatives) == 1:
                     segment = alternatives[0]
@@ -687,14 +700,6 @@ class ConnectorPicker(object):
                             segment = alternative
                     start, end = segment
                     self.ext_segments.append((start, end, node.label, node.label))
-
-
-
-
-
-
-
-
 
 # class TriangleVisitor:
 #     def __init__(self, mesh):

@@ -11,7 +11,7 @@ def coincident(a, b): #eps = 0.0001):
     else:
         return False
 
-DEBUG = False
+DEBUG = True
 
 class SkeletonNode(object):
 
@@ -860,7 +860,6 @@ class SkeletonGraph(object):
         # id, left/right face, start/end node
         # TODO: remove nodes with degree = 2 that do not form loop
         # Q: can such loops exist??
-        
         INIT = 0
         VISITED = 1
         self.new_node_id = new_node_id
@@ -924,6 +923,7 @@ class SkeletonGraph(object):
 #                        out = edge.rcw_out
                     next_edge, out, angle = sn.ccw_next_edge(edge, out)
                     if edge.external and next_edge.external:
+                        if DEBUG: print "(dir st) external"
                         break
                     edge = next_edge
                     if edge is start:
@@ -952,6 +952,7 @@ class SkeletonGraph(object):
                     if DEBUG: print "(dir st) now at", edge.edge_id, "propagating", lf_id, rf_id
                     if DEBUG: group_by.append(edge.edge_id)
                     edge.label = VISITED
+
                 edge = start
                 out = True # s->e,incoming at e (will be flipped in ccw_next_edge
                 # walk in direction from start -> end
@@ -964,6 +965,7 @@ class SkeletonGraph(object):
 #                    edge, out, angle = en.ccw_next_edge(edge, not out)
                     next_edge, out, angle = sn.ccw_next_edge(edge, not out)
                     if edge.external and next_edge.external:
+                        if DEBUG: print "(dir e) external"
                         break
                     edge = next_edge
 
@@ -1015,6 +1017,7 @@ class SkeletonGraph(object):
                 self.new_edge_id += 1
                 #new = (start.edge_id, sn.id, en.id, lf_id, rf_id, st_length(geom), geom)
                 new = (self.new_edge_id, sn.id, en.id, lf_id, rf_id, geom.length, geom)
+                if DEBUG: print new
                 self.new_edges.append(new)
 #        for new in self.new_edges:
 #            print new

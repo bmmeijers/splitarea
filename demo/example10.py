@@ -30,14 +30,15 @@ def test():
 #    Triangle with *touching* hole
 
 #    FIXME: 
-#    unnecessary node which is the start of the inner ring remains
-#    as edges around this node are flagged as external
+#    unnecessary nodes -->>> too short edges
 
     conv = ToPointsAndSegments()
     a, b, c, = (0,0), (10,20), (20,0)
     d, e = (10,25), (25,0) 
     g, h = (10,16), (16,2)
+    i = (30,20)
 
+    k,l,m = (18,11), (19,16), (24,12)
     alpha3 = angle(a, b)
     alpha2 = angle(a, g)
     alpha1 = angle(a, h)
@@ -57,19 +58,28 @@ def test():
     ]
     conv.add_point(b, info = VertexInfo(1, None, 1001))
     conv.add_point(c, info = VertexInfo(0, None, 1002))
-
     conv.add_point(a, info = VertexInfo(3, sectors, 1003))
+    conv.add_point(i, info = VertexInfo(0, None, None))
 
     conv.add_point(g, info = VertexInfo(0, None, None))
     conv.add_point(h, info = VertexInfo(0, None, None))
 
+    conv.add_point(k, info = VertexInfo(0, None, None))
+    conv.add_point(l, info = VertexInfo(0, None, None))
+    conv.add_point(m, info = VertexInfo(2, "K", 1004))
+
     conv.add_segment(a, b)
-    conv.add_segment(b, c)
+    conv.add_segment(b, i)
+    conv.add_segment(i, c)
     conv.add_segment(c, a)
 
     conv.add_segment(a, g)
     conv.add_segment(g, h)
     conv.add_segment(h, a)
+
+    conv.add_segment(k, l)
+    conv.add_segment(l, m)
+    conv.add_segment(m, k)
 
     points, segments, infos = conv.points, conv.segments, conv.infos
 
