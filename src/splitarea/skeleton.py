@@ -310,6 +310,7 @@ class SkeletonGraph(object):
         self.edges = [] #set()
         self.new_edges = []
         self.universe_id = None
+        self.srid = 0
 
     def add_node(self, pt, vertex_id, external_id): 
         assert vertex_id is not None
@@ -391,7 +392,7 @@ class SkeletonGraph(object):
             new_end = ccw_edge.end_node
         else:
             new_end = ccw_edge.start_node
-        geom = LineString()
+        geom = LineString(srid=self.srid)
         geom.append(new_start.geometry)
         geom.append(new_end.geometry)
         # remove edge
@@ -904,6 +905,8 @@ class SkeletonGraph(object):
                 check = (min(lf_id,rf_id), max(lf_id,rf_id))
                 if DEBUG: print "start:", edge.edge_id, "st:", sn.id, "en:", en.id
                 geom = edge.geometry
+                print "EDGE GEOMETRY", geom
+                STARTSRID = geom.srid
                 out = True #e->s, outgoing from s 
                 # walk in direction from end -> start
                 while True:
@@ -941,17 +944,24 @@ class SkeletonGraph(object):
                         # and extend what's there already
                         extend = geom[1:]
                         geom = edge.geometry[:]
+                        print geom, geom.srid
+                        assert geom.srid == STARTSRID
                         geom.reverse()
+                        assert geom.srid == STARTSRID
                         geom.extend(extend)
+                        assert geom.srid == STARTSRID
 #                        geom.extend(edge.geometry[1:]) # correct?
                     else:
                         sn = edge.start_node
                         extend = geom[1:]
                         geom = edge.geometry[:]
+                        assert geom.srid == STARTSRID
                         geom.extend(extend)
+                        assert geom.srid == STARTSRID
                     if DEBUG: print "(dir st) now at", edge.edge_id, "propagating", lf_id, rf_id
                     if DEBUG: group_by.append(edge.edge_id)
                     edge.label = VISITED
+                    
 
                 edge = start
                 out = True # s->e,incoming at e (will be flipped in ccw_next_edge
@@ -994,6 +1004,7 @@ class SkeletonGraph(object):
                     if DEBUG: print "(dir en) now at", edge.edge_id, "propagating", lf_id, rf_id, "hoovering at node", en.id
                     if DEBUG: group_by.append(edge.edge_id)
                     edge.label = VISITED
+                    assert geom.srid == STARTSRID
                 if DEBUG: print "fin, group found:", group_by
                 try:
                     assert coincident(geom[0], sn.geometry)
@@ -1197,7 +1208,7 @@ class SkeletonGraph(object):
         assert end_node.id is not None
         assert left_face_id is not None
         assert right_face_id is not None
-
+        assert geom.srid != 0
         self.new_edges.append((edge.edge_id, start_node.id, end_node.id, left_face_id, right_face_id, geom.length, geom))
 #        if DEBUG: print """INSERT INTO tmp_mesh_ln4 (id, start_node_id, end_node_id, left_face_id, right_face_id, geometry) VALUES
 #({0}, {1}, {2}, {3}, {4}, geomfromtext('{5}'));""".format(edge.edge_id, start_node.id, end_node.id, left_face_id, right_face_id, geom)
