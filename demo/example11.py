@@ -22,6 +22,9 @@ conv = ToPointsAndSegments()
 conv.add_polygon(rings)
 dt = triangulate(conv.points, conv.infos, conv.segments)
 
+
+# import sys
+# sys.exit()
 with open("/tmp/alltris.wkt", "w") as fh:
     output_triangles([t for t in TriangleIterator(dt)], fh)
 
