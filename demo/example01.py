@@ -178,8 +178,8 @@ def test():
          5002, True, (0,20),
          1002, False, (1,9),
 
-         "A",
-         "B"
+         10000,
+         10005
          ),
         (4001,
          LineString([(20,1), (9,1)]),
@@ -187,8 +187,8 @@ def test():
          5001, True, (20,1),
          1001, False, (9,1),
 
-         "B",
-         "A"
+         10005,
+         10000
          ),
     ] 
     
@@ -196,7 +196,7 @@ def test():
     skeleton = SkeletonGraph()
     print """
     
-    ADDING OUTSIDE EDGES
+ADDING OUTSIDE EDGES
     """
     # first add outside edges
     for outside_edge in outside_edges:
@@ -259,6 +259,13 @@ def test():
     skeleton.label_sides()
     skeleton.prune_branches()
     skeleton.find_new_edges()
+
+    print """
+    
+SKELETON EDGES
+    """
+
+    print skeleton.new_edges
 
     with open("/tmp/edges_new.wkt", "w") as fh:
         fh.write("eid;sn;en;lf;rf;length;geom\n")

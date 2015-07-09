@@ -11,7 +11,7 @@ def coincident(a, b): #eps = 0.0001):
     else:
         return False
 
-DEBUG = True
+DEBUG = False
 
 class SkeletonNode(object):
 
@@ -881,6 +881,9 @@ class SkeletonGraph(object):
 #             node.id = self.new_node_id
 
         for edge in self.edges:
+            geom = edge.geometry
+
+        for edge in self.edges:
             if edge.label == VISITED:
                 continue
             else:
@@ -905,7 +908,6 @@ class SkeletonGraph(object):
                 check = (min(lf_id,rf_id), max(lf_id,rf_id))
                 if DEBUG: print "start:", edge.edge_id, "st:", sn.id, "en:", en.id
                 geom = edge.geometry
-                print "EDGE GEOMETRY", geom
                 STARTSRID = geom.srid
                 out = True #e->s, outgoing from s 
                 # walk in direction from end -> start
@@ -943,8 +945,8 @@ class SkeletonGraph(object):
                         # use reversed edge.geometry[:-2] for geom
                         # and extend what's there already
                         extend = geom[1:]
+                        assert extend.srid == STARTSRID
                         geom = edge.geometry[:]
-                        print geom, geom.srid
                         assert geom.srid == STARTSRID
                         geom.reverse()
                         assert geom.srid == STARTSRID
@@ -978,7 +980,6 @@ class SkeletonGraph(object):
                         if DEBUG: print "(dir e) external"
                         break
                     edge = next_edge
-
 #                    if out:
 #                        edge = edge.rcw
 #                        out = edge.rcw_out
@@ -1030,103 +1031,7 @@ class SkeletonGraph(object):
                 new = (self.new_edge_id, sn.id, en.id, lf_id, rf_id, geom.length, geom)
                 if DEBUG: print new
                 self.new_edges.append(new)
-#        for new in self.new_edges:
-#            print new
-#        if DEBUG:
-#            from psycopg2 import connect
-#            from connect import auth_params
-#            auth = auth_params()
-#            connection = connect(host='%s' % auth['host'], 
-#                                      port=auth['port'], 
-#                                      database='%s' % auth['database'], 
-#                                      user='%s' % auth['username'], 
-#                                      password='%s' % auth['password'])
-#            cursor = connection.cursor()
-#            cursor.execute("""
-#    DROP TABLE IF EXISTS tmp_mesh_ln4;""")
-#            cursor.execute("""
-#    CREATE TABLE tmp_mesh_ln4
-#    (
-#        id int8 UNIQUE NOT NULL,
-#        start_node_id varchar,
-#        end_node_id varchar,
-#        left_face_id varchar,
-#        right_face_id varchar
-#    )  WITH OIDS;
-#    """)
-#            cursor.execute("""
-#    SELECT AddGeometryColumn('tmp_mesh_ln4', 'geometry', -1, 'LINESTRING', 2);
-#    """)
-#            cursor.execute("""TRUNCATE TABLE tmp_mesh_ln4;""")
-#            connection.commit()
-#            for eid, sn, en, lf, rf, length, geom, in self.new_edges:
-#                try:
-#                    command = """INSERT INTO tmp_mesh_ln4 (id, start_node_id, end_node_id, left_face_id, right_face_id, geometry) VALUES
-#    ('{0}', '{1}', '{2}', '{3}', '{4}', geomfromtext('{5}'));""".format(eid, sn, en, lf, rf, geom)
-#                    cursor.execute(command)
-#                    if DEBUG: print "insertion succeeded (", eid, ")"
-#                except Exception, err:
-#                    if DEBUG: print "insertion not succeeded (", eid, ")", err
-#    #                    raise
-#            connection.commit()
-#            cursor.close()
-#            connection.close()
         return
-
-#         # from longest edges possible starting from a node where degree != 2
-#         for node in self.nodes.itervalues():
-#             if node.degree != 2: # node.degree != 2 or 
-#                 while True:
-#                     start_edge, start_out, _, = self.unvisited_edge(node)
-#                     if start_edge.label == VISITED:
-#                         break
-#                     else:
-#                         self.new_node_id += 1
-#                         self.make_edge_walk(start_edge, start_out, True, self.new_node_id)
-#         # walk over remaining edges
-#         for edge in self.edges:
-#             if edge.label != VISITED:
-#                 if DEBUG: print "walking over remaining edges"
-#                 start_edge, start_out, _, = self.unvisited_edge(edge.start_node)
-#                 self.new_node_id += 1
-#                 self.make_edge_walk(start_edge, start_out, False, self.new_node_id)
-        # 
-#        if DEBUG:
-#            from psycopg2 import connect
-#            from connect import auth_params
-#            auth = auth_params()
-#            connection = connect(host='%s' % auth['host'], 
-#                                      port=auth['port'], 
-#                                      database='%s' % auth['database'], 
-#                                      user='%s' % auth['username'], 
-#                                      password='%s' % auth['password'])
-#            cursor = connection.cursor()
-#            cursor.execute("""
-#    DROP TABLE IF EXISTS tmp_mesh_ln4;""")
-#            cursor.execute("""
-#    CREATE TABLE tmp_mesh_ln4
-#    (
-#        id int8 UNIQUE NOT NULL,
-#        start_node_id int,
-#        end_node_id int,
-#        left_face_id int,
-#        right_face_id int
-#    )  WITH OIDS;
-#    """)
-#            cursor.execute("""
-#    SELECT AddGeometryColumn('tmp_mesh_ln4', 'geometry', -1, 'LINESTRING', 2);
-#    """)
-#            for eid, sn, en, lf, rf, length, geom, in self.new_edges:
-#                try:
-#                    command = """INSERT INTO tmp_mesh_ln4 (id, start_node_id, end_node_id, left_face_id, right_face_id, geometry) VALUES
-#    ({0}, {1}, {2}, {3}, {4}, geomfromtext('{5}'));""".format(eid, sn, en, lf, rf, geom)
-#                    cursor.execute(command)
-#                except:
-#                    if DEBUG: print "insertion not succeeded (", eid, ")"
-##                    raise
-#            connection.commit()
-#            cursor.close()
-#            connection.close()
 
     def unvisited_edge(self, node):
         """Returns edge not yet visited at given ``node''
