@@ -865,11 +865,11 @@ class SkeletonGraph(object):
         VISITED = 1
         self.new_node_id = new_node_id
         self.new_edge_id = new_edge_id
-        if DEBUG: print "find_new_edges"
+        if DEBUG:
+            print "find_new_edges"
         self.label_edges(INIT)
         # label nodes that do not have an id yet
         for node in self.nodes.itervalues():
-            print node.id, node.external_id
             # FIXME: node id generation !!!
             if node.external_id is None:
                 self.new_node_id += 1
@@ -880,8 +880,8 @@ class SkeletonGraph(object):
 #             self.new_node_id += 1
 #             node.id = self.new_node_id
 
-        for edge in self.edges:
-            geom = edge.geometry
+#         for edge in self.edges:
+#             geom = edge.geometry
 
         for edge in self.edges:
             if edge.label == VISITED:
