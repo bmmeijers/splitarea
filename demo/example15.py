@@ -30,7 +30,24 @@ def recs():
     ]
     # polygon edges
     polygon = [
-        (331, 199, 199, 74, 67, LineString([Point(x=561248.71376, y=5898194.94024, srid=32632), Point(x=561266.86318, y=5898180.95802, srid=32632), Point(x=561265.84957, y=5898172.80328, srid=32632), Point(x=561264.9987, y=5898171.09707, srid=32632), Point(x=561262.3693, y=5898140.07594, srid=32632), Point(x=561227.39909, y=5898123.38065, srid=32632), Point(x=561210.85369, y=5898130.78853, srid=32632), Point(x=561180.97198, y=5898161.24993, srid=32632), Point(x=561176.4612, y=5898169.25525, srid=32632), Point(x=561172.95066, y=5898180.10562, srid=32632), Point(x=561173.61721, y=5898180.74667, srid=32632), Point(x=561187.34796, y=5898187.46103, srid=32632), Point(x=561201.76614, y=5898190.8415, srid=32632), Point(x=561243.65464, y=5898195.51012, srid=32632), Point(x=561248.71376, y=5898194.94024, srid=32632)], srid=32632))
+        (331, 
+         199, 199,
+         74, 67,
+         LineString([Point(x=561248.71376, y=5898194.94024, srid=32632),
+                     Point(x=561266.86318, y=5898180.95802, srid=32632),
+                     Point(x=561265.84957, y=5898172.80328, srid=32632),
+                     Point(x=561264.9987, y=5898171.09707, srid=32632),
+                     Point(x=561262.3693, y=5898140.07594, srid=32632),
+                     Point(x=561227.39909, y=5898123.38065, srid=32632),
+                     Point(x=561210.85369, y=5898130.78853, srid=32632),
+                     Point(x=561180.97198, y=5898161.24993, srid=32632),
+                     Point(x=561176.4612, y=5898169.25525, srid=32632),
+                     Point(x=561172.95066, y=5898180.10562, srid=32632),
+                     Point(x=561173.61721, y=5898180.74667, srid=32632),
+                     Point(x=561187.34796, y=5898187.46103, srid=32632),
+                     Point(x=561201.76614, y=5898190.8415, srid=32632),
+                     Point(x=561243.65464, y=5898195.51012, srid=32632),
+                     Point(x=561248.71376, y=5898194.94024, srid=32632)], srid=32632))
     ]
     return external, polygon
 
@@ -47,14 +64,14 @@ def test():
         for i, pt in enumerate(geom):
             if i == len(geom) - 1: # last pt
                 node = end_node_id
-                tp = 1
+                tp = 2
             elif i == 0: # first pt
                 node = start_node_id
-                tp = 1
+                tp = 2
             else: # intermediate pt
                 node = None
                 tp = 0
-            conv.add_point((pt.x, pt.y), VertexInfo(tp, None, node))
+            conv.add_point((pt.x, pt.y), VertexInfo(tp, 67, node))
 
         for (start, end) in zip(geom[:-1],geom[1:]):
             (sx, sy) = start
@@ -140,16 +157,18 @@ def test():
                              end_external = en_ext
                              )
     print """
-     
+      
     BRIDGE CONNECTORS
     """
 #     # add nodes from inner rings ("bridge" connectors)
     for i, segment in enumerate(visitor.ext_segments):
-        print segment
+        
         v0, v1, lf, rf = segment
         ln = LineString(srid=skeleton.srid)
         ln.append(Point(v0.x, v0.y))
         ln.append(Point(v1.x, v1.y))
+        print segment
+        print ln
         skeleton.add_segment(ln, 
                              external = True, 
                              edge_id = i,

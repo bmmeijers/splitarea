@@ -11,7 +11,34 @@ from warnings import warn
 from predicates import orient2d
 
 
+
+
 VertexInfo = namedtuple("VertexInfo", "type face_ids vertex_id")
+# VertexInfo types
+# ================
+# The types of VertexInfo are quite crucial for correct processing
+# See ConnectorPicker and node_to_sectors (tgap.genlib.ops.split)
+# for implementation details 
+#
+# TYPE 0
+# Intermediate vertex on an edge, no need to make connection to this
+# node
+#
+# TYPE 1
+# node in topology, there needs to be made a connection to this node
+# => vertex_id is the node_id of the topology
+#
+# TYPE 2
+# E.g. Hole that needs to be dissolved completely, but for that we need 
+# to propagate same label on the whole skeleton!
+# => face_ids is integer of the face that forms the hole
+#
+# TYPE 3
+# for touching rings, we need to have a node sector list:
+# angles that bound a certain face, so that we can get the correct face
+# that overlaps 
+# => face_ids is list with 'node sectors', describing which face is valid for 
+#    which part around the node (based on start and end angle of that sector) 
 
 PI2 = 2 * pi
 
@@ -317,6 +344,12 @@ class EdgeEdgeHarvester(object):
                     start, end = split[(lft,rgt)][0]
                     self.ext_segments.append((start, end, lft, rgt))
             else:
+                # VERTEX INFO is 2
+                # which means that the vertex is at the start of a ring
+                # that is completely merging in the parent
+                # hence, we assure that this connector segment knows what 
+                # face is on the inside of the ring
+                # node.info.face_ids is one integer, representing a face_id
                 assert node.info.type == 2
                 if len(alternatives) == 1:
                     segment = alternatives[0]
