@@ -2,6 +2,11 @@ from simplegeom.geometry import Point, LineString
 from math import hypot, floor, ceil
 #from collections import deque
 
+# FIXME:
+# 0 triangle:
+# what if we make a series of shrinking 0 triangles and based on these
+# triangles we connect the dots on their boundaries???
+
 def dist(pa, pb):
     dx = pb[0] - pa[0]
     dy = pb[1] - pa[1]

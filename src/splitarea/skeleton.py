@@ -1,8 +1,7 @@
 from simplegeom.geometry import LineString
-# from mesher.mesh import coincident
 from flagging import angle
 
-def coincident(a, b): #eps = 0.0001):
+def coincident(a, b):
     # TODO: make this method epsilon aware
     dx = a.x - b.x
     dy = a.y - b.y
@@ -248,7 +247,7 @@ class SkeletonEdge(object):
         #
         self.lcw = None
         self.lcw_out = None
-        
+        #
         self.label = 0 # for visiting
 
     def __str__(self):
@@ -401,15 +400,15 @@ class SkeletonGraph(object):
         self.remove_edge(ccw_edge)
         # insert shortcut
         self.add_segment(
-                    geom,
-                    external = False,
-                    edge_id = new_edge_id,
-                    start_vertex_id = new_start.id, 
-                    end_vertex_id = new_end.id,
-                    left_face_id = new_left_face_id, 
-                    right_face_id = new_right_face_id,
-                    start_external = False,
-                    end_external = False)
+            geom,
+            external = False,
+            edge_id = new_edge_id,
+            start_vertex_id = new_start.id, 
+            end_vertex_id = new_end.id,
+            left_face_id = new_left_face_id, 
+            right_face_id = new_right_face_id,
+            start_external = False,
+            end_external = False)
 
     def remove_edge(self, edge):
         """Removing a edge from the Winged Edge structure.
@@ -460,7 +459,7 @@ class SkeletonGraph(object):
             node.label = value
 
     def label_sides(self):
-        """ 
+        """Propagate what is on left and right for given edges onto new segments
         """
         INIT = 0
         LEFT = 1
@@ -570,177 +569,6 @@ class SkeletonGraph(object):
         if error:
             raise ValueError('We could not label an edge somehow')
 
-#    def label_sides_(self, debug = False):
-#        """ """
-#        INIT = 0
-#        LEFT = 1
-#        RIGHT = 2
-#        BOTH = LEFT + RIGHT
-#        if debug:
-#            if DEBUG: print "lAbel sides"
-#        self.label_edges(INIT)
-#        if debug:
-#            if DEBUG: print "joh"
-#            if DEBUG: print self.ext
-#            if DEBUG: print "j0h"
-#        for edge in self.ext:
-#            if edge.label == BOTH:
-#                continue
-#            else:
-#                if debug:
-#                    if DEBUG: print "=+=+=+=+=+=+="
-#                first_edge = edge
-#                while True:
-#                    # stop if edge is used twice
-#                    if edge.label == BOTH:
-#                        break
-#                    if not edge.label & LEFT:
-#                        loop_for_face_id = edge.left_face_id
-#                        visit_left = True
-#                    elif not edge.label & RIGHT:
-#                        loop_for_face_id = edge.right_face_id
-#                        visit_left = False
-#                    if debug:
-#                        if DEBUG: print "starting at", first_edge, "propagating", loop_for_face_id, "on left?", visit_left
-#                    while True: 
-#                        if visit_left:
-#                            if not edge.external:
-#                                edge.left_face_id = loop_for_face_id 
-#                            elif edge.external and edge.lccw.external:# \
-#                                #and edge.lccw is edge: #TODO BUG check that this external edge is not the same!!!
-#                                if edge.lccw_out:
-#                                    loop_for_face_id = edge.lccw.left_face_id
-#                                    if debug:
-#                                        if DEBUG: print "A",
-#                                else:
-#                                    loop_for_face_id = edge.lccw.right_face_id
-#                                    if debug:
-#                                        if DEBUG: print "B",
-#                                if debug:
-#                                    if DEBUG: print "turning around @ node", edge.end_node.id,
-#                                    if DEBUG: print "changed face id", loop_for_face_id
-#                            edge.label += LEFT
-#                            visit_left = edge.lccw_out
-#                            if debug:
-#                                if DEBUG: print "now at", edge, "propagating", loop_for_face_id, "on left?", visit_left, "taking lccw", edge.lccw.edge_id
-#                            edge = edge.lccw
-#                        else:
-#                            if not edge.external:
-#                                edge.right_face_id = loop_for_face_id
-#                            elif edge.external and edge.rccw.external:# \
-#                                #and edge.rccw is edge:
-#                                if edge.rccw_out:
-#                                    loop_for_face_id = edge.rccw.left_face_id
-#                                    if debug:
-#                                        if DEBUG: print "C",
-#                                else:
-#                                    loop_for_face_id = edge.rccw.right_face_id
-#                                    if debug:
-#                                        if DEBUG: print "D",
-#                                if debug:
-#                                    if DEBUG: print "turning around @ node", edge.start_node.id,
-#                                    if DEBUG: print "changed face id", loop_for_face_id
-#                            edge.label += RIGHT
-#                            visit_left = edge.rccw_out
-#                            if debug:
-#                                if DEBUG: print "now at", edge, "propagating", loop_for_face_id, "on left?", visit_left, "taking rccw", edge.rccw.edge_id
-#                            edge = edge.rccw
-#                        # check that turning around a node goes well
-#                        if False:
-#                            tmp_fid = None
-#                            if visit_left and edge.left_face_id is not None:
-#                                tmp_fid = edge.left_face_id
-#                            elif not visit_left and edge.right_face_id is not None: 
-#                                tmp_fid = edge.right_face_id
-#                            if tmp_fid is not None:
-#                                try:
-#                                    assert loop_for_face_id == tmp_fid
-#                                except:
-#                                    if DEBUG: print "expected", tmp_fid, "found", loop_for_face_id, edge
-#                                    raise
-#                        #
-#                        if edge is first_edge:
-#                            if debug:
-#                                if DEBUG: print "stopping: reached", edge
-#                                if DEBUG: print ""
-#                            break
-#        if DEBUG: print "=8=8=8=8="
-#
-#        for edge in self.edges:
-#            if (edge.left_face_id is None and edge.right_face_id is not None) \
-#                or \
-#                (edge.right_face_id is None and edge.left_face_id is not None):
-#                
-##                raise NotImplementedError('should be done something here with universe')
-#                # TODO: skip if adjacent to universe 
-#                # (we should start on edge that is not zero weight)
-#                if edge.left_face_id is None and edge.right_face_id == self.universe_id:
-#                    continue
-#                if edge.right_face_id is None and edge.left_face_id == self.universe_id:
-#                    continue
-#                #
-#                
-#                #
-#                stack = [edge]
-#                while stack:
-#                    edge = stack.pop()
-#                    if edge.unmovable:
-#                        continue
-#                    
-#                    if edge.left_face_id is None:
-#                        visit_left = True
-#                        loop_for_face_id = edge.right_face_id
-#                        
-#                    elif edge.right_face_id is None:
-#                        visit_left = False
-#                        loop_for_face_id = edge.left_face_id
-#                    
-#                    else:
-#                        continue
-#                    
-#                    first_edge = edge
-#                    if debug:
-#                        if DEBUG: print "starting at", first_edge
-#                    while True:
-#                        if debug:
-#                            if DEBUG: print "now at", edge.edge_id
-#                        if visit_left:
-#                            assert edge.left_face_id is None
-#                            edge.left_face_id = loop_for_face_id
-#                            if edge.right_face_id is None:
-#                                stack.append(edge)
-#                            visit_left = edge.lccw_out
-#                            edge = edge.lccw
-#                        else:
-#                            assert edge.right_face_id is None
-#                            edge.right_face_id = loop_for_face_id
-#                            if edge.left_face_id is None:
-#                                stack.append(edge)
-#                            visit_left = edge.rccw_out
-#                            edge = edge.rccw
-#                            
-#                        if edge is first_edge:
-#                            break
-#        error = False
-#        for edge in self.edges:
-#            if edge.left_face_id is None or edge.right_face_id is None:
-#                if DEBUG: print edge, ">>>"
-#                if DEBUG: print edge.edge_id, edge.start_node, edge.end_node
-#                error = True
-#        if error:
-#            raise ValueError('We could not label an edge somehow')
-##        temp_hack = False
-##        for edge in self.edges:
-##            if edge.left_face_id is None:
-##                temp_hack = True
-###                edge.left_face_id = 0
-##            if edge.right_face_id is None:
-###                edge.right_face_id = 0
-##                temp_hack = True
-##        
-##        if temp_hack:
-##            raise ValueError("temporary universe hack for islands")
-
     def prune_branches(self, debug = False):
         """Prune branches, i.e. edges that have same face_id on both sides
         """
@@ -757,104 +585,13 @@ class SkeletonGraph(object):
             self.remove_edge(edge)
 #             self.prune_edge(edge)
         del removal
-# 
-#     def create_edge_table(self):
-#         from brep.conn import ConnectionFactory
-#         conn = ConnectionFactory()
-#         cursor = conn.cursor()
-#         
-#         command = """
-# DROP TABLE IF EXISTS tmp_mesh_skel;"""
-#         cursor.execute(command)
-# 
-#         command = """
-# CREATE TABLE tmp_mesh_skel
-# (
-# id int8 NOT NULL,
-# txt varchar,
-# neighbours varchar
-# )  WITH OIDS;"""
-#         cursor.execute(command)
-#         command = """SELECT AddGeometryColumn('tmp_mesh_skel', 'geometry', -1, 'LINESTRING', 2);
-# """
-#         cursor.execute(command)
-#         cursor.close()
-#         conn.commit()
-#         conn.close()
 
-#     def visualize_edges(self, txt = ""):
-#         from brep.conn import ConnectionFactory
-#         conn = ConnectionFactory()
-#         cursor = conn.cursor()
-#         for edge in self.edges:
-#             txt = "external? {0} unmovable? {1}".format(edge.external, edge.unmovable)
-#             cursor.execute(
-# "INSERT INTO tmp_mesh_skel (id, txt, neighbours, geometry) VALUES ({0}, '{1}', '{2} {3} minmaxed', geomfromtext('{4}'));".format(edge.edge_id, txt, min(edge.left_face_id, edge.right_face_id),  max(edge.left_face_id, edge.right_face_id), edge.geometry))
-#         cursor.close()
-#         conn.commit()
-#         conn.close()
-#         print "VISUALIZE EDGES, see tmp_mesh_skel"
-        
     def visualize_nodes(self):
         fh = open('/tmp/nodes.wkt', 'w')
         fh.write("nid;geometry\n")
         for node in self.nodes.itervalues():
             print >> fh, node.id, ";", node.geometry
         fh.close()
-#        from brep.conn import ConnectionFactory
-#        conn = ConnectionFactory()
-#        cursor = conn.cursor()
-#        command = """
-#DROP TABLE IF EXISTS tmp_mesh_pt2;"""
-#        cursor.execute(command)
-#        command = """CREATE TABLE tmp_mesh_pt2
-#        (
-#            id int8 UNIQUE NOT NULL,
-#            txt varchar
-#        )  WITH OIDS;"""
-#        cursor.execute(command)
-#        command = """SELECT AddGeometryColumn('tmp_mesh_pt2', 'geometry', -1, 'POINT', 2);
-#        """
-#        cursor.execute(command)
-#        for node in self.nodes.itervalues():
-#            command = "INSERT INTO tmp_mesh_pt2 (id, txt, geometry) VALUES ({0}, '{1}', geomfromtext('{2}'));".format(id(node), node.id, node.geometry)
-#            cursor.execute(command)
-#        cursor.close()
-#        conn.commit()
-#        conn.close()
-#        print "VISUALIZE NODES, see tmp_mesh_pt2"
-
-#     def list_segments_pg(self):
-#         from psycopg2 import connect
-#         from connect import auth_params
-#         auth = auth_params()
-#         connection = connect(host='%s' % auth['host'], 
-#                                   port=auth['port'], 
-#                                   database='%s' % auth['database'], 
-#                                   user='%s' % auth['username'], 
-#                                   password='%s' % auth['password'])
-#         cursor = connection.cursor()
-#         cursor.execute("""
-# DROP TABLE IF EXISTS tmp_mesh_segments;""")
-#         cursor.execute("""
-# CREATE TABLE tmp_mesh_segments
-# (
-#     id int8 UNIQUE NOT NULL,
-#     lf varchar,
-#     rf varchar
-# )  WITH OIDS;
-# """)
-#         cursor.execute("""
-# SELECT AddGeometryColumn('tmp_mesh_segments', 'geometry', -1, 'LINESTRING', 2);
-# """)
-#         for edge in self.edges:
-#             cursor.execute("""INSERT INTO tmp_mesh_segments (id,  lf, rf, geometry) VALUES
-# ({0}, '{1}', '{2}', geomfromtext('{3}'));""".format(edge.edge_id, edge.left_face_id, edge.right_face_id, edge.geometry)
-#         )
-#         connection.commit()
-#         cursor.close()
-#         connection.close()
-
 
     def find_new_edges(self, new_node_id = 0, new_edge_id = 0):
         # this method should output new edges, with correct 
@@ -874,15 +611,6 @@ class SkeletonGraph(object):
             if node.external_id is None:
                 self.new_node_id += 1
                 node.id = self.new_node_id
-                #node.id = node.external_id
-#             # if node.degree != 2 and 
-# #            if node.id is None:
-#             self.new_node_id += 1
-#             node.id = self.new_node_id
-
-#         for edge in self.edges:
-#             geom = edge.geometry
-
         for edge in self.edges:
             if edge.label == VISITED:
                 continue
@@ -894,15 +622,6 @@ class SkeletonGraph(object):
                 if DEBUG: group_by.append(edge.edge_id)
                 sn = edge.start_node
                 en = edge.end_node
-#                 try:
-#                     assert type(sn.id) is type(1)
-#                 except AssertionError:
-#                     raise ValueError("Node {}, id has no int type".format(sn))
-#                 
-#                 try:
-#                     assert type(en.id) is type(1)
-#                 except AssertionError:
-#                     raise ValueError("Node {}, id has no int type".format(sn))
                 lf_id = edge.left_face_id
                 rf_id = edge.right_face_id
                 check = (min(lf_id,rf_id), max(lf_id,rf_id))
@@ -1100,34 +819,9 @@ class SkeletonGraph(object):
         except:
             print start_node.geometry, geom[0], end_node.geometry, geom[-1]
             raise
-#        if left_face_id is None:
-#            left_face_id = -99999
-#        if right_face_id is None:
-#            right_face_id = -99999
-#        if start_node.id is None:
-#            start_node.id = self.new_node_id
-#        if end_node.id is None:
-#            start_node.id = self.new_node_id
-
         assert start_node.id is not None
         assert end_node.id is not None
         assert left_face_id is not None
         assert right_face_id is not None
         assert geom.srid != 0
         self.new_edges.append((edge.edge_id, start_node.id, end_node.id, left_face_id, right_face_id, geom.length, geom))
-#        if DEBUG: print """INSERT INTO tmp_mesh_ln4 (id, start_node_id, end_node_id, left_face_id, right_face_id, geometry) VALUES
-#({0}, {1}, {2}, {3}, {4}, geomfromtext('{5}'));""".format(edge.edge_id, start_node.id, end_node.id, left_face_id, right_face_id, geom)
-
-
-#def coincident(a, b):
-#    EPS = 1e-6
-#    dx = a.x - b.x
-#    if dx < 0:
-#        dx *= -1
-#    dy = a.y - b.y
-#    if dy < 0:
-#        dy *= -1
-#    if dx < EPS and dy < EPS:
-#        return True
-#    else:
-#        return False
