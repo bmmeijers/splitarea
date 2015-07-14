@@ -1,5 +1,5 @@
 from simplegeom.geometry import LineString
-from flagging import angle
+from splitarea.harvest import angle
 
 def coincident(a, b):
     # TODO: make this method epsilon aware

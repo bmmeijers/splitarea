@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""Based on a set of triangles that represent the interior of an area
+obtain a linear representation of that area
+
+"""
 
 from collections import defaultdict, namedtuple
 from math import atan2, pi
