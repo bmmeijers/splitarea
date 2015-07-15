@@ -7,7 +7,7 @@ from collections import defaultdict, namedtuple
 from simplegeom.geometry import LineString, Envelope, Point
 from simplegeom.wkt import loads
     
-from splitarea.flagging import EdgeEdgeHarvester, VertexInfo
+from splitarea.harvest import EdgeEdgeHarvester, VertexInfo, ConnectorPicker
 from splitarea.skeleton import SkeletonGraph
 
 from tri import triangulate, ToPointsAndSegments # polygon_as_points_and_segments
@@ -102,7 +102,9 @@ def test():
             for seg in lst:
                 fh.write("LINESTRING({0[0].x} {0[0].y}, {0[1].x} {0[1].y})\n".format(seg))
 
-    visitor.pick_connectors()
+    pick = ConnectorPicker(visitor)
+    pick.pick_connectors()
+
 
     with open("/tmp/skel2.wkt", "w") as fh:
         fh.write("wkt\n")

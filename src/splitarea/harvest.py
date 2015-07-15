@@ -5,8 +5,7 @@ obtain a linear representation of that area
 """
 
 from collections import defaultdict, namedtuple
-from math import atan2, pi
-from math import hypot
+from math import atan2, pi, hypot
 
 from tri.delaunay import Vertex
 

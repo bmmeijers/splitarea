@@ -615,19 +615,14 @@ class SkeletonGraph(object):
             if edge.label == VISITED:
                 continue
             else:
-                if DEBUG: print ""
                 start = edge
                 edge.label = VISITED
-                if DEBUG: group_by = []
-                if DEBUG: group_by.append(edge.edge_id)
                 sn = edge.start_node
                 en = edge.end_node
                 lf_id = edge.left_face_id
                 rf_id = edge.right_face_id
                 check = (min(lf_id,rf_id), max(lf_id,rf_id))
-                if DEBUG: print "start:", edge.edge_id, "st:", sn.id, "en:", en.id
                 geom = edge.geometry
-                STARTSRID = geom.srid
                 out = True #e->s, outgoing from s 
                 # walk in direction from end -> start
                 while True:
@@ -635,85 +630,54 @@ class SkeletonGraph(object):
                     # edge next is start
                     # L/R is not same any more
                     # node stepping over has a degree >= 3 or 1 (i.e. !2)
-                    if DEBUG: print "now at (sn)", sn
                     if sn.degree != 2:
-                        if DEBUG: print "(dir st) break: node.degree != 2 @e", edge.edge_id, "n", sn.id
                         break
-#                    if out:
-#                        edge = edge.lcw
-#                        out = edge.lcw_out
-#                    else:
-#                        edge = edge.rcw
-#                        out = edge.rcw_out
+
                     next_edge, out, angle = sn.ccw_next_edge(edge, out)
+
                     if edge.external and next_edge.external:
-                        if DEBUG: print "(dir st) external"
                         break
+
                     edge = next_edge
+
                     if edge is start:
-                        if DEBUG: print "(dir st) break: edge is start", edge.edge_id
                         break
                     if edge.label == VISITED:
-                        if DEBUG: print "(dir st) break: edge is already visited", edge.edge_id
                         break
                     if (min(edge.right_face_id, edge.left_face_id), max(edge.right_face_id, edge.left_face_id)) != check:
-                        if DEBUG: print "(dir st) break: not same lf / rf"
                         break
+
                     if out:
                         sn = edge.end_node
                         # use reversed edge.geometry[:-2] for geom
                         # and extend what's there already
                         extend = geom[1:]
-                        assert extend.srid == STARTSRID
                         geom = edge.geometry[:]
-                        assert geom.srid == STARTSRID
                         geom.reverse()
-                        assert geom.srid == STARTSRID
                         geom.extend(extend)
-                        assert geom.srid == STARTSRID
-#                        geom.extend(edge.geometry[1:]) # correct?
                     else:
                         sn = edge.start_node
                         extend = geom[1:]
                         geom = edge.geometry[:]
-                        assert geom.srid == STARTSRID
                         geom.extend(extend)
-                        assert geom.srid == STARTSRID
-                    if DEBUG: print "(dir st) now at", edge.edge_id, "propagating", lf_id, rf_id
-                    if DEBUG: group_by.append(edge.edge_id)
+
                     edge.label = VISITED
-                    
 
                 edge = start
                 out = True # s->e,incoming at e (will be flipped in ccw_next_edge
                 # walk in direction from start -> end
                 while True:
-                    if DEBUG: print "now at node (en)", en
-                    if DEBUG: print edge
                     if en.degree != 2:
-                        if DEBUG: print "(dir en) break: node.degree != 2 @e", edge.edge_id, "n", sn.id, "hoovering at node", sn.id
                         break
-#                    edge, out, angle = en.ccw_next_edge(edge, not out)
                     next_edge, out, angle = sn.ccw_next_edge(edge, not out)
                     if edge.external and next_edge.external:
-                        if DEBUG: print "(dir e) external"
                         break
                     edge = next_edge
-#                    if out:
-#                        edge = edge.rcw
-#                        out = edge.rcw_out
-#                    else:
-#                        edge = edge.lcw
-#                        out = edge.lcw_out
-#                    
                     if edge is start:
-                        if DEBUG: print "(dir en) break: edge is start", edge.edge_id
                         break
                     if edge.label == VISITED:
-                        if DEBUG: print "(dir en) break: edge is already visited", edge.edge_id
                         break
                     if (min(edge.right_face_id, edge.left_face_id), max(edge.right_face_id, edge.left_face_id)) != check:
-                        if DEBUG: print "(dir en) break: not same lf / rf"
                         break
                     if out:
                         en = edge.end_node
@@ -721,34 +685,19 @@ class SkeletonGraph(object):
                     else:
                         en = edge.start_node
                         geom.extend(edge.geometry[-2::-1])
-                    if DEBUG: print "(dir en) now at", edge.edge_id, "propagating", lf_id, rf_id, "hoovering at node", en.id
-                    if DEBUG: group_by.append(edge.edge_id)
                     edge.label = VISITED
-                    assert geom.srid == STARTSRID
-                if DEBUG: print "fin, group found:", group_by
                 try:
                     assert coincident(geom[0], sn.geometry)
                 except AssertionError:
-                    print geom
-                    print sn, en, sn.geometry, en.geometry
-                    print sn.geometry, "!=", geom[0]
                     raise
                 try:
                     assert coincident(geom[-1], en.geometry)
                 except AssertionError:
-                    print geom
-                    print sn, en, sn.geometry, en.geometry
-                    print en.geometry, "!=", geom[-1]
                     raise
                 assert sn.id is not None
                 assert en.id is not None
-#                assert lf_id is not None
-#                assert rf_id is not None
-                # TODO: skip length calculation
                 self.new_edge_id += 1
-                #new = (start.edge_id, sn.id, en.id, lf_id, rf_id, st_length(geom), geom)
                 new = (self.new_edge_id, sn.id, en.id, lf_id, rf_id, geom.length, geom)
-                if DEBUG: print new
                 self.new_edges.append(new)
         return
 

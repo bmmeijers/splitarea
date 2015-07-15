@@ -7,7 +7,7 @@ from collections import defaultdict, namedtuple
 from simplegeom.geometry import LineString, Envelope, Point
 from simplegeom.wkt import loads
     
-from splitarea.flagging import EdgeEdgeHarvester, VertexInfo
+from splitarea.harvest import EdgeEdgeHarvester, VertexInfo, ConnectorPicker
 from splitarea.skeleton import SkeletonGraph
 
 from tri import triangulate, ToPointsAndSegments # polygon_as_points_and_segments
@@ -76,11 +76,6 @@ def test():
             conv.add_segment((sx, sy), (ex,ey))
 
     points, segments, infos = conv.points, conv.segments, conv.infos
-
-    pprint(points)
-    pprint(segments)
-    pprint(infos)
-
     dt = triangulate(points, infos, segments)
 
     for vertex in dt.vertices:
@@ -109,7 +104,8 @@ def test():
             for seg in lst:
                 fh.write("LINESTRING({0[0].x} {0[0].y}, {0[1].x} {0[1].y})\n".format(seg))
 
-    visitor.pick_connectors()
+    pick = ConnectorPicker(visitor)
+    pick.pick_connectors()
 
     with open("/tmp/skel2.wkt", "w") as fh:
         fh.write("wkt\n")
@@ -191,8 +187,6 @@ def test():
         end_vertex_id = v1.info.vertex_id
         if end_vertex_id is None:
             end_vertex_id = (id(v1), ) # note, not an int but tuple to prevent duplicate with external ids
-        print start_vertex_id
-        print end_vertex_id
         skeleton.add_segment(ln, 
                              start_vertex_id = start_vertex_id,
                              end_vertex_id = end_vertex_id,
