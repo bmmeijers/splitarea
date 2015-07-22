@@ -499,7 +499,7 @@ class EdgeEdgeWeightedHarvester(object):
 
             if weight_type == 3:
                 # a, b is fixed
-                self.add_connector(c, a)                        
+                self.add_connector(c, a)
                 # tricky situation, point between two constrained edges should 
                 # propagate left / right info (can only happen to type2 and type3 triangles)
 #                if b.flag == 2: # TODO
@@ -510,7 +510,7 @@ class EdgeEdgeWeightedHarvester(object):
             elif weight_type == 5:
                 # a, c is fixed
                 f = mid_point2(a, c)
-                self.add_connector(c, f)                        
+                self.add_connector(c, f)
                 # tricky situation, point between two constrained edges should 
                 # propagate left / right info (can only happen to type2 and type3 triangles)
                 if b.flag == 2:
@@ -525,13 +525,13 @@ class EdgeEdgeWeightedHarvester(object):
 #                if b.flag == 2: # TODO
 #                    self.bridges[b].append( (b, c) )
 #                else:
-                self.add_segment(b, c)  
+                self.add_segment(b, c)
 
         elif weight_type == 7:
             f = mid_point2(a, c)
-            self.add_connector(c, f)                        
+            self.add_connector(c, f)
             self.add_segment(a, b)
-            self.add_segment(b, c)            
+            self.add_segment(b, c)
             # tricky situation, point between two constrained edges should 
             # propagate left / right info (can only happen to type2 and type3 triangles)
             if b.flag == 2:

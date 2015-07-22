@@ -4,6 +4,7 @@
 	<comment></comment>
 	<projects>
 		<project>simplegeom</project>
+		<project>topomap</project>
 		<project>tri</project>
 	</projects>
 	<buildSpec>
