@@ -108,8 +108,9 @@ def test():
         for seg in visitor.ext_segments:
             fh.write("LINESTRING({0[0].x} {0[0].y}, {0[1].x} {0[1].y})\n".format(seg))
 
-    skeleton = make_graph (outside_edges, visitor)
+    skeleton = make_graph(outside_edges, visitor)
     label_sides(skeleton)
+
     prune_branches(skeleton)
     groups = define_groups(skeleton)
     new_edges = make_new_edges(groups)

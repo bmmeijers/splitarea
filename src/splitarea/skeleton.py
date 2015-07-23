@@ -3,7 +3,7 @@ from collections import deque
 from simplegeom.geometry import LineString, Point
 from topomap.topomap import TopoMap
 
-def make_graph(external, visitor, universe_id=0, srid=-1):
+def make_graph(external, visitor, new_edge_id, universe_id, srid):
     # FIXME: correct universe_id and srid
     skeleton = TopoMap(universe_id, srid)
 #         print """
@@ -23,7 +23,7 @@ def make_graph(external, visitor, universe_id=0, srid=-1):
                           lf, rf,
                           geom, attrs = {'external':True})
     # add nodes from inner rings ("bridge" connectors)
-    for i, segment in enumerate(visitor.ext_segments):
+    for i, segment in enumerate(visitor.ext_segments, start = new_edge_id+1):
         # FIXME: We can have overlapping edge ids now with external edge ids?!
         v0, v1, lf, rf = segment
         ln = LineString(srid=srid)
@@ -37,10 +37,10 @@ def make_graph(external, visitor, universe_id=0, srid=-1):
 #                             start_external = True,
 #                             end_external = True
                              )
-
+        new_edge_id = i 
     # add all segments which are unlabeled
     for i, segment in enumerate(visitor.segments, 
-                                start = len(visitor.ext_segments)):
+                                start = new_edge_id+1):
         # FIXME: We can have overlapping edge ids now with external edge ids?!
         v0, v1, = segment
 #             print v0, v1
@@ -62,7 +62,7 @@ def make_graph(external, visitor, universe_id=0, srid=-1):
                              ln
                              , attrs = {'external':False}
                              )
-    return skeleton
+    return skeleton, new_edge_id
 
 def label_sides(skeleton):
     # find external edges
@@ -80,9 +80,10 @@ def label_sides(skeleton):
             he.face = face # connect edge to face of external edge
     # FIXME:
     # with zero weights there can be cycles!
-    for he in skeleton.half_edges.itervalues():
-        assert he.face is not None
-        assert he.twin.face is not None
+    # postcondition: edge has face on both sides
+#     for he in skeleton.half_edges.itervalues():
+#         assert he.face.id is not None, he.id
+#         assert he.twin.face.id is not None, he.id
 #    # FIXME: universe_id !!
 #    # FIXME: this should result in all cycles because of 0 weight edges
 #    # also being labeled
@@ -114,6 +115,9 @@ def label_sides(skeleton):
 #                     if he is start:
 #                         break
 def prune_branches(skeleton):
+    for he in skeleton.half_edges.itervalues():
+        assert he.face.id is not None, he.id
+        assert he.twin.face.id is not None, he.id
 
     # PRUNE BRANCHES:
     # remove edges that have same face on both sides
@@ -192,11 +196,19 @@ def define_groups(skeleton):
 #                 if he.attrs['external'] == True:
 #                     break
 #             groups.append(group)
-def make_new_edges(groups, start_edge_id = 1):
+def make_new_node_ids(skeleton, new_node_id):
+    for node in skeleton.nodes.itervalues():
+        # FIXME: node id generation !!!
+        if not isinstance(node.id, int):
+            new_node_id += 1
+            node.id = new_node_id
+    return new_node_id
+
+def make_new_edges(groups, new_edge_id=1):
     # once we have these groups, we can merge the chains into longer chains
     # this are the edges that have to be put back in the topology structure
     new_edges = []
-    for new_edge_id, group in enumerate(groups, start = start_edge_id):
+    for new_edge_id, group in enumerate(groups, start = new_edge_id):
 #         print "==="
         geom = None
         for he in group:
@@ -224,7 +236,7 @@ def make_new_edges(groups, start_edge_id = 1):
                     group[0].face.id, group[0].twin.face.id,
                     geom)
         new_edges.append(new_edge)
-    return new_edges
+    return new_edges, new_edge_id
 
 
 # from simplegeom.geometry import LineString
