@@ -47,8 +47,7 @@ def make_graph(external, visitor, new_edge_id, universe_id, srid):
                              end_node_id,
                              None, None,
                              ln
-                             , attrs = {'external':False}
-                             )
+                             , attrs = {'external':False})
     return skeleton, new_edge_id
 
 def label_sides(skeleton):

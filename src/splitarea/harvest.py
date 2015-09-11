@@ -55,7 +55,7 @@ def mid_point2(pa, pb):
     mid.info = VertexInfo(0, None, tuple(L))
     return mid
 
-def mid_point3(pa, pb, pc, factor = 1.8):
+def mid_point3(pa, pb, pc, factor = 2):
     """Mid point between 3 original points, the factor parameter
     describes how big the influence of the point opposite of the 
     smallest edge is. """
@@ -253,13 +253,13 @@ class EdgeEdgeHarvester(object):
 
 
 class MidpointHarvester(object):
-    """ Harvest segments by connecting center points of triangles that lie on 
-    inside the triangles 
+    """ Harvest segments by connecting center points of triangles that lie
+    on the interior of the triangles 
 
     This harvester makes two passes over the triangles:
     1. compute per triangle a point that lies inside
     2. connect the points that were found (connections made are based on 
-       neighbouring relationships the triangles have)
+       the neighbouring relationships the triangles have)
     """
 
     def __init__(self, triangles):
@@ -406,7 +406,8 @@ class MidpointHarvester(object):
             # 3 - triangle
             elif triangle_type == 7:
                 #print "3 triangle"
-                raise NotImplementedError("not there yet")
+                self.process_3triangle(t)
+                #raise NotImplementedError("not there yet")
  
     def connect_dots(self):
         # create segments using given triangles
@@ -509,20 +510,16 @@ class ConnectorPicker(object):
         # shortest 
         for node in self.harvester.connectors:
             alternatives = self.harvester.connectors[node]
-            if len(alternatives) == 1:
-                segment = alternatives[0]
-                self.harvester.segments.append(segment)
-            else:
-                pt0, pt1, = alternatives[0]
-                shortest = dist(pt0, pt1)
-                segment = (pt0, pt1)
-                for alternative in alternatives[1:]:
-                    pt0, pt1, = alternative
-                    d = dist(pt0, pt1)
-                    if d < shortest:
-                        shortest = d
-                        segment = (pt0, pt1)
-                self.harvester.segments.append(segment)
+            pt0, pt1, = alternatives[0]
+            current = dist(pt0, pt1)
+            segment = (pt0, pt1)
+            for alternative in alternatives[1:]:
+                pt0, pt1, = alternative
+                d = dist(pt0, pt1)
+                if d < current:
+                    current = d
+                    segment = (pt0, pt1)
+            self.harvester.segments.append(segment)
  
         # special cases --> transfer L/R info into segment graph
         for node in self.harvester.bridges:
@@ -568,19 +565,18 @@ class ConnectorPicker(object):
                 # face is on the inside of the ring
                 # node.info.face_ids is one integer, representing a face_id
                 assert node.info.type == 2
-                if len(alternatives) == 1:
-                    segment = alternatives[0]
-                    start, end = segment
-                    self.harvester.ext_segments.append((start, end, node.info.face_ids, node.info.face_ids))
-                else:
-                    v0, v1, = alternatives[0]
-                    longest = dist(v0, v1)
-                    segment = (v0, v1)
-                    for alternative in alternatives[1:]:
-                        v0, v1, = alternative
-                        d = dist(v0, v1)
-                        if d > longest:
-                            longest = d
-                            segment = alternative
-                    start, end = segment
-                    self.harvester.ext_segments.append((start, end, node.info.face_ids, node.info.face_ids))
+                v0, v1, = alternatives[0]
+                current = dist(v0, v1)
+                segment = (v0, v1)
+                # in case there are more alternatives, we go over them
+                # and pick the longest
+                for alternative in alternatives[1:]:
+                    v0, v1, = alternative
+                    d = dist(v0, v1)
+                    if d < current:
+                        current = d
+                        segment = alternative
+                start, end = segment
+                self.harvester.ext_segments.append((start, end, 
+                                                    node.info.face_ids, 
+                                                    node.info.face_ids))
