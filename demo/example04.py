@@ -6,7 +6,7 @@ from collections import defaultdict, namedtuple
 
 from simplegeom.geometry import LineString, Envelope, Point
 from simplegeom.wkt import loads
-    
+
 from splitarea.flagging import EdgeEdgeHarvester #, MidpointHarvester, 
 from splitarea.flagging import VertexInfo
 from splitarea.skeleton import SkeletonGraph

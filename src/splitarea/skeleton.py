@@ -46,8 +46,8 @@ def make_graph(external, visitor, new_edge_id, universe_id, srid):
                              start_node_id,
                              end_node_id,
                              None, None,
-                             ln
-                             , attrs = {'external':False})
+                             ln,
+                             attrs = {'external':False})
     return skeleton, new_edge_id
 
 def label_sides(skeleton):
@@ -166,7 +166,7 @@ def make_new_node_ids(skeleton, new_node_id):
             node.id = new_node_id
     return new_node_id
 
-def make_new_edges(groups, new_edge_id=1):
+def make_new_edges(groups, new_edge_id):
     """Constructs new edges based on the groups that were found by 
     the define_groups method
     """

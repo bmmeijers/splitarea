@@ -1,11 +1,10 @@
 #raise NotImplementedError("This code is not functioning well")
 from collections import defaultdict, namedtuple
-from math import atan2, pi, hypot
+from math import hypot
 
 from tri.delaunay import Vertex
 
 VertexInfo = namedtuple("VertexInfo", "type face_ids vertex_id")
-
 
 def mid_point2(pa, pb):
     #wa = float(min(pa.weights))
@@ -36,7 +35,8 @@ def weighted_mid_point2(pa, pb):
         K = wa / ( wa + wb )
     else:
         K = waa / ( waa + wba )
-        K = min(max(K, 0.02), 0.98)
+        #K = min(max(K, 0.02), 0.98)
+        K = min(max(K, 0), 1) # make sure we do not go out of bounds
 
 #    K = wa / ( wa + wb )
 

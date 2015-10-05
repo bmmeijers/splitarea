@@ -8,7 +8,7 @@ from simplegeom.geometry import LineString, Envelope, Point
 from simplegeom.wkt import loads
     
 from splitarea.harvest import EdgeEdgeHarvester, VertexInfo, ConnectorPicker
-from splitarea.skeleton import SkeletonGraph
+# from splitarea.skeleton import SkeletonGraph
 
 from tri import triangulate, ToPointsAndSegments # polygon_as_points_and_segments
 from tri.delaunay import output_triangles, output_vertices
