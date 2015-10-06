@@ -31,6 +31,8 @@ def make_graph(external, visitor, new_edge_id, universe_id, srid):
     for i, segment in enumerate(visitor.segments, 
                                 start = new_edge_id+1):
         v0, v1, = segment
+        print v0, v0.info
+        print v1, v1.info
         ln = LineString(srid=srid)
         ln.append(Point(v0.x, v0.y))
         ln.append(Point(v1.x, v1.y))
@@ -42,7 +44,7 @@ def make_graph(external, visitor, new_edge_id, universe_id, srid):
         if end_node_id is None:
             # note, not an int but tuple to prevent duplicate with external ids
             end_node_id = (id(v1), ) 
-        skeleton.add_edge(i, 
+        skeleton.add_edge(i,
                              start_node_id,
                              end_node_id,
                              None, None,

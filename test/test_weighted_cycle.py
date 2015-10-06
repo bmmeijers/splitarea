@@ -6,7 +6,9 @@ from collections import defaultdict, namedtuple
 from simplegeom.geometry import LineString, Envelope, Point
 from simplegeom.wkt import loads
 
-from splitarea.harvest import EdgeEdgeHarvester, VertexInfo, ConnectorPicker
+from splitarea.harvest import EdgeEdgeHarvester, VertexInfo
+from splitarea.weighted_harvest import EdgeEdgeWeightedHarvester, VertexInfo as VertexInfoWeights
+from splitarea.harvest import ConnectorPicker
 from splitarea.skeleton import make_graph, label_sides,\
     prune_branches, define_groups, make_new_edges
 
@@ -32,36 +34,38 @@ def recs():
     ]
     # polygon edges
     polygon = [
-        (1001, 1, 2, 501, 500, LineString([(0, 110), (10, 110)]) ),
-        (1002, 1, 2, 500, -1, LineString([(0,110), (0,100), (10,100), (10,110)]) ),
-        (1003, 3, 3, 500, -1, LineString([(5,102), (5,104), (7,104), (7,102), (5,102)]) )
+        (1001, 1, 2, 501, 500, LineString([(0, 110), (5, 109), (10, 110)]) ),
+        (1002, 1, 2, 500, -1, LineString([(0,110), (0,100), (-3,100), (-3,90), (0,90), (1,100), (10,100), (10,110)]) ),
     ]
     return external, polygon
 
-class TestPolygonWithHole(unittest.TestCase):
 
-    def test_polygon_with_hole(self):
+class TestPolygonWithWeightsAndCycle(unittest.TestCase):
+    def test_square(self):
         conv = ToPointsAndSegments()
         outside_edges, polygon = recs()
         for edge_id, start_node_id, end_node_id, _, _, geom in polygon:
             face = None
-            if edge_id == 1003: # interior ring
-                face = -1
+            weights = []
             for i, pt in enumerate(geom):
                 if i == len(geom) - 1: # last pt
                     node = end_node_id
                     tp = 1
-                    if edge_id == 1003: # we need a bridge vertex
-                        tp = 2
+                    weights = [0, 10]
                 elif i == 0: # first pt
                     node = start_node_id
                     tp = 1
-                    if edge_id == 1003:
-                        tp = 2
+                    weights = [0, 10]
                 else: # intermediate pt
                     node = None
                     tp = 0
-                conv.add_point((pt.x, pt.y), VertexInfo(tp, face, node))
+                    if edge_id == 1001:
+                        weights = [10]
+                    elif edge_id == 1002:
+                        weights = [0]
+                    else:
+                        raise ValueError('encountered unknown edge')
+                conv.add_point((pt.x, pt.y), VertexInfoWeights(tp, face, node, weights))
             for (start, end) in zip(geom[:-1],geom[1:]):
                 (sx, sy) = start
                 (ex, ey) = end
@@ -70,23 +74,50 @@ class TestPolygonWithHole(unittest.TestCase):
         points, segments, infos = conv.points, conv.segments, conv.infos
         dt = triangulate(points, infos, segments)
 
-        visitor = EdgeEdgeHarvester([t for t in InteriorTriangleIterator(dt)])
+        with open("/tmp/alltris.wkt", "w") as fh:
+            output_triangles([t for t in TriangleIterator(dt)], fh)
+        with open("/tmp/allvertices.wkt", "w") as fh:
+            output_vertices(dt.vertices, fh)
+        with open("/tmp/interiortris.wkt", "w") as fh:
+            output_triangles([t for t in InteriorTriangleIterator(dt)], fh)
+        with open("/tmp/hull.wkt", "w") as fh:
+            output_triangles([t for t in ConvexHullTriangleIterator(dt)], fh)
+
+        visitor = EdgeEdgeWeightedHarvester([t for t in InteriorTriangleIterator(dt)])
         visitor.skeleton_segments()
+
+        with open("/tmp/skel0.wkt", "w") as fh:
+            fh.write("wkt\n")
+            for seg in visitor.segments:
+                fh.write("LINESTRING({0[0].x} {0[0].y}, {0[1].x} {0[1].y})\n".format(seg))
+        with open("/tmp/skel1.wkt", "w") as fh:
+            fh.write("wkt\n")
+            for lst in visitor.bridges.itervalues():
+                for seg in lst:
+                    fh.write("LINESTRING({0[0].x} {0[0].y}, {0[1].x} {0[1].y})\n".format(seg))
 
         pick = ConnectorPicker(visitor)
         pick.pick_connectors()
 
         skeleton, new_edge_id = make_graph(outside_edges, visitor, new_edge_id=10000, universe_id=0, srid=-1)
         label_sides(skeleton)
-        assert new_edge_id == 10001
+
+#         lines = ["id;geometry\n"]
+#         for he in skeleton.half_edges.itervalues():
+#             lines.append("{};{}\n".format(he.id, he.geometry))
+#         with open("/tmp/edgesweights.wkt", "w") as fh:
+#             fh.writelines(lines)
 
         # -- remove unwanted skeleton parts (same face id on both sides)
         prune_branches(skeleton)
         groups = define_groups(skeleton)
         new_edges, new_edge_id = make_new_edges(groups, new_edge_id)
 
-        assert len(new_edges) == 1
-        assert new_edge_id == 10001
-
 if __name__ == '__main__':
+#     ext, pol = recs()
+#     for e in ext:
+#         print e[5]
+#     
+#     for l in pol:
+#         print l[5]
     unittest.main()

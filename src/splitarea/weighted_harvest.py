@@ -4,36 +4,40 @@ from math import hypot
 
 from tri.delaunay import Vertex
 
-VertexInfo = namedtuple("VertexInfo", "type face_ids vertex_id")
+VertexInfo = namedtuple("VertexInfo", "type face_ids vertex_id weights")
 
 def mid_point2(pa, pb):
-    #wa = float(min(pa.weights))
-    #wb = float(min(pb.weights))
+    #wa = float(min(pa.info.weights))
+    #wb = float(min(pb.info.weights))
     mid = Vertex( (pa.x + pb.x) / 2.0, (pa.y + pb.y) / 2.0)
-    #mid.weights = [min(wa, wb)]
+
+    # FIXME: type, face_ids, vertex_id & weights
+    #mid.info.weights = [min(wa, wb)]
     return mid
 
 def mid_point3(pa, pb, pc):
-    #wa = float(min(pa.weights))
-    #wb = float(min(pb.weights))
-    #wc = float(min(pc.weights))
+    #wa = float(min(pa.info.weights))
+    #wb = float(min(pb.info.weights))
+    #wc = float(min(pc.info.weights))
     mid = Vertex((pa.x + pb.x + pc.x) / 3.0, (pa.y + pb.y + pc.y) / 3.0 )
-    #mid.weights = [min(wa, wb, wc)]
+
+    # FIXME: type, face_ids, vertex_id & weights
+    #mid.info.weights = [min(wa, wb, wc)]
     return mid
 
 def weighted_mid_point2(pa, pb):
-    wa = float(min(pa.weights))
-    wb = float(min(pb.weights))
+    wa = float(min(pa.info.weights))
+    wb = float(min(pb.info.weights))
 
     start = pa
     end = pb
 
-    waa = float(sum(pa.weights)) # / len(pa.weights)
-    wba = float(sum(pa.weights)) # / len(pb.weights)
-
     if wa == 0 or wb == 0:
         K = wa / ( wa + wb )
     else:
+        waa = float(sum(pa.info.weights)) # / len(pa.info.weights)
+        wba = float(sum(pa.info.weights)) # / len(pb.info.weights)
+
         K = waa / ( waa + wba )
         #K = min(max(K, 0.02), 0.98)
         K = min(max(K, 0), 1) # make sure we do not go out of bounds
@@ -54,7 +58,15 @@ def weighted_mid_point2(pa, pb):
     px = start.x + dx * K
     py = start.y + dy * K
     v = Vertex(px, py)
-    #v.weights = [min(wa, wb)]
+
+    # FIXME: type, face_ids, vertex_id & weights
+    #v.info.weights = [min(wa, wb)]
+
+    # put info
+    L = [id(pa), id(pb)]
+    L.sort()
+    v.info = VertexInfo(0, None, tuple(L), [])
+
     return v 
 
 def dist(v0, v1):
@@ -64,9 +76,9 @@ def dist(v0, v1):
 
 def weighted_mid_point3(pa, pb, pc):
 #    lst = [] 
-#    lst.extend(pa.weights)
-#    lst.extend(pb.weights)
-#    lst.extend(pc.weights)
+#    lst.extend(pa.info.weights)
+#    lst.extend(pb.info.weights)
+#    lst.extend(pc.info.weights)
 #    if min(lst) == 1.0:
 #        return mid_point3(pa, pb, pc)
 
@@ -94,7 +106,13 @@ def weighted_mid_point3(pa, pb, pc):
 #        v = mid_point2(c, a)
 #    
     v = Vertex((a.x + b.x + c.x) / 3.0, (a.y + b.y + c.y) / 3.0 )
-    #v.weights = [mn(a.weights, b.weights, c.weights)]
+
+    # put info
+    L = [id(a), id(b), id(c)]
+    L.sort()
+    v.info = VertexInfo(0, None, tuple(L), [])
+    # FIXME: type, face_ids, vertex_id & weights
+    #v.info.weights = [mn(a.info.weights, b.info.weights, c.info.weights)]
     return v
 
 
@@ -114,41 +132,41 @@ class EdgeEdgeWeightedHarvester(object):
         self.connectors = defaultdict(list)
         self.bridges = defaultdict(list)
 
-    def skeleton_segments(self):
-        # create segments using given triangles
-        tp = [1, 2, 4]
-        for t in self.triangles:
-            # type of triangle (we count the number of constraints per triangle)
-            triangle_type = 0
-            for i, c in enumerate(t.constrained):
-                if c:
-                    triangle_type += tp[i]
-            # 0 - triangle
-            if triangle_type == 0:
-                #print '0 triangle'
-                self.process_0triangle(t)
-            # 1 - triangle (3 rotations)
-            elif triangle_type in (1, 2, 4):
-                #print "1 triangle"
-                if triangle_type == 1:
-                    self.process_1triangle(t, 0)
-                elif triangle_type == 2:
-                    self.process_1triangle(t, 1)
-                elif triangle_type == 4:
-                    self.process_1triangle(t, 2)
-            # 2 - triangle (3 rotations)
-            elif triangle_type in (3, 5, 6):
-                #print "2 triangle"
-                if triangle_type == 3: # 1 + 2
-                    self.process_2triangle(t, 0)
-                elif triangle_type == 6: # 2 + 4
-                    self.process_2triangle(t, 1)
-                elif triangle_type == 5: # 4 + 1
-                    self.process_2triangle(t, 2)
-            # 3 - triangle
-            elif triangle_type == 7:
-                #print "3 triangle"
-                self.process_3triangle(t)
+#     def skeleton_segments(self):
+#         # create segments using given triangles
+#         tp = [1, 2, 4]
+#         for t in self.triangles:
+#             # type of triangle (we count the number of constraints per triangle)
+#             triangle_type = 0
+#             for i, c in enumerate(t.constrained):
+#                 if c:
+#                     triangle_type += tp[i]
+#             # 0 - triangle
+#             if triangle_type == 0:
+#                 #print '0 triangle'
+#                 self.process_0triangle(t)
+#             # 1 - triangle (3 rotations)
+#             elif triangle_type in (1, 2, 4):
+#                 #print "1 triangle"
+#                 if triangle_type == 1:
+#                     self.process_1triangle(t, 0)
+#                 elif triangle_type == 2:
+#                     self.process_1triangle(t, 1)
+#                 elif triangle_type == 4:
+#                     self.process_1triangle(t, 2)
+#             # 2 - triangle (3 rotations)
+#             elif triangle_type in (3, 5, 6):
+#                 #print "2 triangle"
+#                 if triangle_type == 3: # 1 + 2
+#                     self.process_2triangle(t, 0)
+#                 elif triangle_type == 6: # 2 + 4
+#                     self.process_2triangle(t, 1)
+#                 elif triangle_type == 5: # 4 + 1
+#                     self.process_2triangle(t, 2)
+#             # 3 - triangle
+#             elif triangle_type == 7:
+#                 #print "3 triangle"
+#                 self.process_3triangle(t)
 
     def add_segment(self, v0, v1):
         #print "add_segment", v0, v1
@@ -174,89 +192,92 @@ class EdgeEdgeWeightedHarvester(object):
         else:
             self.connectors[start].append( (start, end) )
 #         ## TODO: different for weighted version:
-# #        if start.flag == 2 and len(start.weights) > 0 and min(start.weights) != 0:
+# #        if start.info.type == 2 and len(start.info.weights) > 0 and min(start.info.weights) != 0:
 #             self.bridges[start].append( (start, end) )
 
-    def process_0triangle(self, t):
-        assert not t.constrained[0]
-        assert not t.constrained[1]
-        assert not t.constrained[2]
-        a, b, c = t.vertices
-        # segments
-        mid_pt = mid_point3(a, b, c)
-        pt0 = mid_point2(a, b)
-        pt1 = mid_point2(b, c)
-        pt2 = mid_point2(c, a)
-#         assert pt0.flag == 0
-#         assert pt1.flag == 0
-#         assert pt2.flag == 0
-        self.add_segment( pt0, mid_pt )
-        self.add_segment( pt1, mid_pt )
-        self.add_segment( pt2, mid_pt )
-        # connectors
-        self.add_connector(a, pt0)
-        self.add_connector(b, pt1)
-        self.add_connector(c, pt2)
+#     def process_0triangle(self, t):
+#         assert not t.constrained[0]
+#         assert not t.constrained[1]
+#         assert not t.constrained[2]
+#         a, b, c = t.vertices
+#         # segments
+#         mid_pt = mid_point3(a, b, c)
+#         pt0 = mid_point2(a, b)
+#         pt1 = mid_point2(b, c)
+#         pt2 = mid_point2(c, a)
+# #         assert pt0.info.type == 0
+# #         assert pt1.info.type == 0
+# #         assert pt2.info.type == 0
+#         self.add_segment( pt0, mid_pt )
+#         self.add_segment( pt1, mid_pt )
+#         self.add_segment( pt2, mid_pt )
+#         # connectors
+#         self.add_connector(a, pt0)
+#         self.add_connector(b, pt1)
+#         self.add_connector(c, pt2)
+# 
+#     def process_1triangle(self, t, side):
+#         assert t.constrained[side]
+#         assert not t.constrained[(side+1)%3]
+#         assert not t.constrained[(side+2)%3]
+#         a, b, c = t.vertices[(side+1)%3], t.vertices[(side+2)%3], t.vertices[(side+3)%3]
+#         # Get length of the base of the triangle and its area, this gets the 
+#         # height of the triangle. 
+#         # This height is an approximation of the river width at this point
+# #         base = dist(a, b)
+# #         if base:
+# #             height = abs(orient2d(a, b, c)) / base
+# #         else:
+# #             # prevent div by zero
+# #             height = 0.
+#         #width = round(height * 2.)  / 2.
+#         # segments
+#         pt0 = mid_point2(c, a)
+#         pt1 = mid_point2(b, c)
+#         #pt0.info = {'width': width}
+#         #pt1.info = {'width': width}
+#         # connectors
+#         self.add_connector(b, pt1)
+#         self.add_connector(c, pt0)
+#         self.add_segment( pt0, pt1 )
+# 
+#     def process_2triangle(self, t, side):
+#         assert t.constrained[side]
+#         assert t.constrained[(side+1)%3]
+#         assert not t.constrained[(side+2)%3]
+#         a, b, c = t.vertices[(side+1)%3], t.vertices[(side+2)%3], t.vertices[(side+3)%3]
+#         pt0 = b
+#         pt1 = mid_point2(a, c)
+#         self.add_connector(c, pt1)
+#         # tricky situation, point between two constrained edges should 
+#         # propagate left / right info (can only happen to type2 and type3 triangles)
+#         self.add_segment( pt0, pt1 )
+# 
+#     def process_3triangle(self, t):
+#         side = 0
+#         assert t.constrained[side]
+#         assert t.constrained[(side+1)%3]
+#         assert t.constrained[(side+2)%3]
+#         a, b, c = t.vertices[(side+1)%3], t.vertices[(side+2)%3], t.vertices[(side+3)%3]
+#         # segments
+#         mid_pt = mid_point3(a, b, c)
+#         #
+#         self.add_segment( a, mid_pt )
+#         self.add_segment( b, mid_pt )
+#         self.add_segment( c, mid_pt )
+#         # connectors
+#         # no connectors in this case,
+#         # all nodes will be connected by definition
 
-    def process_1triangle(self, t, side):
-        assert t.constrained[side]
-        assert not t.constrained[(side+1)%3]
-        assert not t.constrained[(side+2)%3]
-        a, b, c = t.vertices[(side+1)%3], t.vertices[(side+2)%3], t.vertices[(side+3)%3]
-        # Get length of the base of the triangle and its area, this gets the 
-        # height of the triangle. 
-        # This height is an approximation of the river width at this point
-#         base = dist(a, b)
-#         if base:
-#             height = abs(orient2d(a, b, c)) / base
-#         else:
-#             # prevent div by zero
-#             height = 0.
-        #width = round(height * 2.)  / 2.
-        # segments
-        pt0 = mid_point2(c, a)
-        pt1 = mid_point2(b, c)
-        #pt0.info = {'width': width}
-        #pt1.info = {'width': width}
-        # connectors
-        self.add_connector(b, pt1)
-        self.add_connector(c, pt0)
-        self.add_segment( pt0, pt1 )
 
-    def process_2triangle(self, t, side):
-        assert t.constrained[side]
-        assert t.constrained[(side+1)%3]
-        assert not t.constrained[(side+2)%3]
-        a, b, c = t.vertices[(side+1)%3], t.vertices[(side+2)%3], t.vertices[(side+3)%3]
-        pt0 = b
-        pt1 = mid_point2(a, c)
-        self.add_connector(c, pt1)
-        # tricky situation, point between two constrained edges should 
-        # propagate left / right info (can only happen to type2 and type3 triangles)
-        self.add_segment( pt0, pt1 )
-
-    def process_3triangle(self, t):
-        side = 0
-        assert t.constrained[side]
-        assert t.constrained[(side+1)%3]
-        assert t.constrained[(side+2)%3]
-        a, b, c = t.vertices[(side+1)%3], t.vertices[(side+2)%3], t.vertices[(side+3)%3]
-        # segments
-        mid_pt = mid_point3(a, b, c)
-        #
-        self.add_segment( a, mid_pt )
-        self.add_segment( b, mid_pt )
-        self.add_segment( c, mid_pt )
-        # connectors
-        # no connectors in this case,
-        # all nodes will be connected by definition
-
-
-    def weighted_skeleton_segments(self):
+    def skeleton_segments(self):
         # create segments using given triangles
         tp = [1, 2, 4]
         for t in self.triangles:
-            # type of triangle (we count the number of constraints per triangle)
+            # type of triangle 
+            # we count the number of constraints per triangle
+            # encoding them with 0, 1, 2, 4 gives also which sides
+            # are constrained
             triangle_type = 0
             for i, c in enumerate(t.constrained):
                 if c:
@@ -295,11 +316,11 @@ class EdgeEdgeWeightedHarvester(object):
         a, b, c = t.vertices
         #
         weight_type = 0
-        if min(a.weights) == 0:
+        if min(a.info.weights) == 0:
             weight_type += 1
-        if min(b.weights) == 0:
+        if min(b.info.weights) == 0:
             weight_type += 2
-        if min(c.weights) == 0:
+        if min(c.info.weights) == 0:
             weight_type += 4
 
         if weight_type == 0: # no vertices fixed
@@ -376,11 +397,11 @@ class EdgeEdgeWeightedHarvester(object):
 #         assert not he.next.next.constraint
 #         a, b, c = he.origin, he.next.origin, he.next.next.origin
         weight_type = 0
-        if min(a.weights) == 0:
+        if min(a.info.weights) == 0:
             weight_type += 1
-        if min(b.weights) == 0:
+        if min(b.info.weights) == 0:
             weight_type += 2
-        if min(c.weights) == 0:
+        if min(c.info.weights) == 0:
             weight_type += 4
 
         if weight_type == 0:
@@ -453,11 +474,11 @@ class EdgeEdgeWeightedHarvester(object):
 #         assert not he.next.next.constraint
 #         a, b, c = he.origin, he.next.origin, he.next.next.origin
         weight_type = 0
-        if min(a.weights) == 0:
+        if min(a.info.weights) == 0:
             weight_type += 1
-        if min(b.weights) == 0:
+        if min(b.info.weights) == 0:
             weight_type += 2
-        if min(c.weights) == 0:
+        if min(c.info.weights) == 0:
             weight_type += 4
 
         if weight_type == 0:
@@ -466,7 +487,7 @@ class EdgeEdgeWeightedHarvester(object):
             self.add_connector(c, f)
             # tricky situation, point between two constrained edges should 
             # propagate left / right info (can only happen to type2 and type3 triangles)
-            if b.flag == 2:
+            if b.info.type == 2:
                 self.bridges[b].append( (b, f) )
             else:
                 self.add_segment(b, f)
@@ -476,7 +497,7 @@ class EdgeEdgeWeightedHarvester(object):
             if weight_type == 1:
                 # a is fixed
                 self.add_connector(c, a)
-                if a.flag == 2:
+                if a.info.type == 2:
                     self.bridges[a].append( (a, b) )
                 else:
                     self.add_segment( a, b)
@@ -484,13 +505,13 @@ class EdgeEdgeWeightedHarvester(object):
                 # b is fixed
                 f = weighted_mid_point2(a, c)
                 self.add_connector(c, f)
-#                if b.flag == 2:
+#                if b.info.type == 2:
 #                    self.bridges[b].append( (b, f) )
 #                else:
                 self.add_segment( b, f)
             elif weight_type == 4:
                 # c is fixed
-                if b.flag == 2: # should be b.flag == 2 or c.flag == 2:
+                if b.info.type == 2: # should be b.info.type == 2 or c.info.type == 2:
                     self.bridges[b].append( (b, c) )
                 else:
                     self.add_segment( b, c)
@@ -502,7 +523,7 @@ class EdgeEdgeWeightedHarvester(object):
                 self.add_connector(c, a)
                 # tricky situation, point between two constrained edges should 
                 # propagate left / right info (can only happen to type2 and type3 triangles)
-#                if b.flag == 2: # TODO
+#                if b.info.type == 2: # TODO
 #                    self.bridges[b].append( (b, a) )
 #                else:
                 self.add_segment(b, a)
@@ -513,7 +534,7 @@ class EdgeEdgeWeightedHarvester(object):
                 self.add_connector(c, f)
                 # tricky situation, point between two constrained edges should 
                 # propagate left / right info (can only happen to type2 and type3 triangles)
-                if b.flag == 2:
+                if b.info.type == 2:
                     self.bridges[b].append( (b, f) )
                 else:
                     self.add_segment(b, f)
@@ -522,7 +543,7 @@ class EdgeEdgeWeightedHarvester(object):
                 # b, c is fixed
                 # tricky situation, point between two constrained edges should 
                 # propagate left / right info (can only happen to type2 and type3 triangles)
-#                if b.flag == 2: # TODO
+#                if b.info.type == 2: # TODO
 #                    self.bridges[b].append( (b, c) )
 #                else:
                 self.add_segment(b, c)
@@ -534,7 +555,7 @@ class EdgeEdgeWeightedHarvester(object):
             self.add_segment(b, c)
             # tricky situation, point between two constrained edges should 
             # propagate left / right info (can only happen to type2 and type3 triangles)
-            if b.flag == 2:
+            if b.info.type == 2:
                 self.bridges[b].append( (b, f) )
             else:
                 self.add_segment(b, f)
@@ -551,25 +572,25 @@ class EdgeEdgeWeightedHarvester(object):
 #         assert he.next.next.constraint
 #         a, b, c = he.origin, he.next.origin, he.next.next.origin
         weight_type = 0
-        if min(a.weights) == 0:
+        if min(a.info.weights) == 0:
             weight_type += 1
-        if min(b.weights) == 0:
+        if min(b.info.weights) == 0:
             weight_type += 2
-        if min(c.weights) == 0:
+        if min(c.info.weights) == 0:
             weight_type += 4
 
         if weight_type == 0:
             # segments
             g = weighted_mid_point3(a, b, c)
-            if a.flag == 2:
+            if a.info.type == 2:
                 self.bridges[a].append( (a, g) )
             else:
                 self.add_segment( a, g )
-            if b.flag == 2:
+            if b.info.type == 2:
                 self.bridges[b].append( (b, g) )
             else:
                 self.add_segment( b, g )
-            if c.flag == 2:
+            if c.info.type == 2:
                 self.bridges[c].append( (c, g) )
             else:
                 self.add_segment( c, g )
@@ -580,15 +601,15 @@ class EdgeEdgeWeightedHarvester(object):
         elif weight_type in (3, 5, 6):
             def two_fix(a, b, c):
                 g = mid_point2(a, b)
-                if a.flag == 2: # node.info.type !
+                if a.info.type == 2: # node.info.type !
                     self.bridges[a].append( (a, g) )
                 else:
                     self.add_segment( a, g )
-                if b.flag == 2:
+                if b.info.type == 2:
                     self.bridges[b].append( (b, g) )
                 else:
                     self.add_segment( b, g )
-                if c.flag == 2:
+                if c.info.type == 2:
                     self.bridges[c].append( (c, g) )
                 else:
                     self.add_segment( c, g )
