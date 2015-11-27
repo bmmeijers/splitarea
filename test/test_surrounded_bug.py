@@ -96,14 +96,14 @@ class TestPolygonWithHole(unittest.TestCase):
                     tp = 1
                     if node == 1332: # we need a bridge vertex
                         face = 1006189
-                        tp = 2
+                        tp = 3
                         print "setting type to", tp, "face to", face
                 elif i == 0: # first pt
                     node = start_node_id
                     tp = 1
                     if node == 1332:
                         face = 1006189
-                        tp = 2
+                        tp = 3
                         print "setting type to", tp, "face to", face
                 else: # intermediate pt
                     node = None

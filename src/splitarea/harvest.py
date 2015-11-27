@@ -532,11 +532,15 @@ class ConnectorPicker(object):
                     start, end = alternative
                     alpha = angle(start, end)
                     for i, xx, in enumerate(start.info.face_ids):
-                        _, _, cw_angle, _, ccw_angle, = xx
-                        if cw_angle < alpha and ccw_angle > alpha:
+                        _, _, _, _, ccw_angle, = xx
+                        if ccw_angle > alpha:
                             break
                     else:
-                        raise ValueError("could not find proper location based on angles")
+                        # we did not break:
+                        # so we did not fit somewhere in between, 
+                        # we have to be in the first sector of the sector list
+                        i = 0
+                        # raise ValueError("could not find proper location based on angles")
                     prv = i - 1
                     nxt = (i + 1) % len(start.info.face_ids)
                     rgt = start.info.face_ids[prv][0]
