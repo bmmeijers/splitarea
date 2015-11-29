@@ -97,6 +97,31 @@ def dist(v0, v1):
     dy = v0[1] - v1[1]
     return hypot(dx, dy)
 
+def overlapping_sector(bearing, sectors):
+    """ get overlapping sector number 
+
+    input:
+        bearing: angle (float) in range [0, 2pi)
+        sectors: list of sectors
+            where a sector is a 5-tuple:
+            (face id (the face of the sector)
+             first edge id 
+             angle of first edge (lowest)
+             second edge id
+             angle of second edge (highest))
+    """
+    for i, xx, in enumerate(sectors):
+        _, _, _, _, ccw_angle, = xx
+        if ccw_angle > bearing:
+            # we found the first edge that has a bigger angle than the angle
+            # we have
+            break
+    else:
+        # we did not break:
+        # so we did not fit somewhere in between, 
+        # we have to be in the first sector of the sector list
+        i = 0
+    return i
 
 class EdgeEdgeHarvester(object):
     """ Harvest segments by connecting midpoints that lie on the sides of 
@@ -531,16 +556,7 @@ class ConnectorPicker(object):
                 for alternative in alternatives:
                     start, end = alternative
                     alpha = angle(start, end)
-                    for i, xx, in enumerate(start.info.face_ids):
-                        _, _, _, _, ccw_angle, = xx
-                        if ccw_angle > alpha:
-                            break
-                    else:
-                        # we did not break:
-                        # so we did not fit somewhere in between, 
-                        # we have to be in the first sector of the sector list
-                        i = 0
-                        # raise ValueError("could not find proper location based on angles")
+                    i = overlapping_sector(alpha, start.info.face_ids)
                     prv = i - 1
                     nxt = (i + 1) % len(start.info.face_ids)
                     rgt = start.info.face_ids[prv][0]
