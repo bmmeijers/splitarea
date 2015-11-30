@@ -31,8 +31,6 @@ def make_graph(external, visitor, new_edge_id, universe_id, srid):
     for i, segment in enumerate(visitor.segments, 
                                 start = new_edge_id+1):
         v0, v1, = segment
-        print v0, v0.info
-        print v1, v1.info
         ln = LineString(srid=srid)
         ln.append(Point(v0.x, v0.y))
         ln.append(Point(v1.x, v1.y))
