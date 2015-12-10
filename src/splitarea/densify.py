@@ -2,6 +2,11 @@ from simplegeom.geometry import Point, LineString
 from math import hypot, floor, ceil
 #from collections import deque
 
+# FIXME:
+# 0 triangle:
+# what if we make a series of shrinking 0 triangles and based on these
+# triangles we connect the dots on their boundaries???
+
 def dist(pa, pb):
     dx = pb[0] - pa[0]
     dy = pb[1] - pa[1]
@@ -17,13 +22,13 @@ def dist(pa, pb):
 def divide(pt0, pt1, new, eps, inclusive_last = False):
     no = floor(dist(pt0, pt1) / eps)
     no = max(no, 1)
-    dx = (pt1.x - pt0.x) / no
-    dy = (pt1.y - pt0.y) / no
+    dx = (pt1[0] - pt0[0]) / no
+    dy = (pt1[1] - pt0[1]) / no
     total = int(no)
     if inclusive_last:
         total += 1
     for i in range(total):
-        new.append(Point(pt0.x + i*dx, pt0.y + i*dy))
+        new.append(Point(pt0[0] + i*dx, pt0[1] + i*dy))
 #
 #ln = LineString()
 #ln.append(pt0)
@@ -59,8 +64,8 @@ def densify(ln, small = 10):
         divide(pt0, pt1, new, small, inclusive)
     # copy first and last back into line 
     # (to not break any dependencies in topology)
-    new[0] = ln[0]
-    new[len(new)-1] = ln[len(ln)-1]
+    new[0] = Point(*ln[0])
+    new[len(new)-1] = Point(*ln[len(ln)-1])
     return new
 #
 #print densify(ln)
