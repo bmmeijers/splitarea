@@ -55,7 +55,7 @@ def label_sides(skeleton):
     starting from external edges """
     # find external edges
     external = set()
-    for he in skeleton.half_edges.itervalues():
+    for he in skeleton.half_edges.values():
         if he.attrs['external']:
             external.add(he)
             external.add(he.twin)
@@ -109,12 +109,12 @@ def prune_branches(skeleton):
     """Removes unwanted edges from the skeleton, i.e. edges with the same
     face on both its sides
     """
-    for he in skeleton.half_edges.itervalues():
+    for he in skeleton.half_edges.values():
         assert he.face.id is not None, he.id
         assert he.twin.face.id is not None, he.id
     # remove edges that have the same face on both sides
     remove = set()
-    for he in skeleton.half_edges.itervalues():
+    for he in skeleton.half_edges.values():
         if he.face is he.twin.face:
             remove.add(he.id)
     for edge_id in remove:
@@ -125,7 +125,7 @@ def define_groups(skeleton):
     """
     seen = set()
     groups = []
-    for he in skeleton.half_edges.itervalues():
+    for he in skeleton.half_edges.values():
         if he in seen:
             continue
         seen.add(he)
@@ -159,7 +159,7 @@ def define_groups(skeleton):
 
 def make_new_node_ids(skeleton, new_node_id):
     """Hands out new node identifiers for nodes that were not yet present """
-    for node in skeleton.nodes.itervalues():
+    for node in skeleton.nodes.values():
         # if this is not an integer, we have to hand out a new node id
         if not isinstance(node.id, int):
             new_node_id += 1

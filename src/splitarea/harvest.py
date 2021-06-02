@@ -7,7 +7,7 @@ obtain a linear representation of that area
 from collections import defaultdict, namedtuple
 from math import atan2, pi, hypot
 
-from tri.delaunay import Vertex
+from tri.delaunay.tds import Vertex
 
 VertexInfo = namedtuple("VertexInfo", "type face_ids vertex_id")
 # VertexInfo types
@@ -142,6 +142,7 @@ class EdgeEdgeHarvester(object):
     def skeleton_segments(self):
         # create segments using given triangles
         tp = [1, 2, 4]
+        ## print(f"{len(self.triangles)} triangles to create segments for")
         for t in self.triangles:
             # type of triangle (we count the number of constraints per triangle)
             triangle_type = 0
@@ -172,7 +173,7 @@ class EdgeEdgeHarvester(object):
                     self.process_2triangle(t, 2)
             # 3 - triangle
             elif triangle_type == 7:
-                #print "3 triangle"
+                #print ("3 triangle")
                 self.process_3triangle(t)
 
     def add_segment(self, v0, v1):
@@ -495,7 +496,7 @@ class MidpointHarvester(object):
 #                print >> fh, TPL.format(pa, pb)
                 self.add_segment(pa, pb)
         except KeyError:
-            print "problem finding triangle"
+            print("problem finding triangle")
             pass
 
 
@@ -553,10 +554,14 @@ class ConnectorPicker(object):
                 # VERTEX INFO is 3
                 # touching ring at a node
                 tmp = []
+
                 for alternative in alternatives:
                     start, end = alternative
                     alpha = angle(start, end)
                     i = overlapping_sector(alpha, start.info.face_ids)
+#                    print "SECTORS", start.info.face_ids
+#                    print "ALPHA", alpha
+#                    print "OVERLAPPING SECTOR", i
                     prv = i - 1
                     nxt = (i + 1) % len(start.info.face_ids)
                     rgt = start.info.face_ids[prv][0]
@@ -569,6 +574,7 @@ class ConnectorPicker(object):
 #                    for thing in group:
 #                        print thing
 #                    print " "
+#                print "TMP", tmp
                 # end of example groupby
                 split = defaultdict(list)
                 for start, end, lft, rgt in tmp:
